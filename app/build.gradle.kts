@@ -69,4 +69,22 @@ dependencies {
     // Coroutine untuk async request
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
 
+    implementation(platform("androidx.compose:compose-bom:2024.03.00"))
+
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+
+    implementation("androidx.navigation:navigation-compose:2.7.6")
+
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    implementation("androidx.compose.runtime:runtime")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("br.com.devsrsouza.compose.icons:font-awesome:1.1.0")
+    implementation("androidx.compose.ui:ui:1.6.0")
+    implementation("com.google.accompanist:accompanist-flowlayout:0.30.1")
+    implementation("androidx.compose.material:material-icons-extended:1.5.0")
+
 }
