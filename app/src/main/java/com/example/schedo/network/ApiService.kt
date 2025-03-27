@@ -12,8 +12,11 @@ interface ApiService {
     @POST("users")
     suspend fun createUser(@Body user: User): User
 
-    @DELETE("users/{id}")
-    suspend fun deleteUser(@Path("id") id: Int)
+    @DELETE("users/{userId}")
+    suspend fun deleteUser(@Path("userId") id: Int)
+
+    @DELETE("users/{userId}/groups/{groupId}")
+    suspend fun deleteGroup(@Path("userId") userId: Int, @Path("groupId")groupId: Int)
 
     // ✅ API untuk menambahkan grup ke user
     @POST("users/{id}/groups")

@@ -95,6 +95,24 @@ fun UserManagementScreen() {
                 modifier = Modifier.weight(1f) // Agar daftar user bisa scroll
             ) {
                 items(users) { user ->
+                    // Deklarasi onDeleteGroup di luar UserItem
+                    val onDeleteGroup: (Int?) -> Unit = { groupId ->
+                        groupId?.let { id ->  // Pastikan ID tidak null sebelum eksekusi
+                            user.id?.let { userId ->
+                                coroutineScope.launch {
+                                    try {
+                                        println("Menghapus grup dengan ID: $id untuk user ID: $userId")
+                                        RetrofitInstance.api.deleteGroup(userId, id)
+                                        fetchUsers()
+                                    } catch (e: Exception) {
+                                        println("Error: ${e.message}")
+                                    }
+                                }
+                            } ?: println("Error: User ID is null")
+                        } ?: println("Error: Group ID is null")
+                    }
+
+// Gunakan di UserItem
                     UserItem(
                         user = user,
                         onDelete = {
@@ -109,19 +127,16 @@ fun UserManagementScreen() {
                                 }
                             }
                         },
+                        onDeleteGroup = onDeleteGroup, // Sekarang sesuai dengan tipe (Int?) -> Unit
                         onAddGroup = { name ->
                             coroutineScope.launch {
                                 try {
                                     if (name.isNotEmpty()) {
                                         user.id?.let { userId ->
-//                                            val groupRequest = GroupRequest(name)
-//                                            RetrofitInstance.api.addGroupToUser(userId, groupRequest)
                                             fetchUsers()
                                         }
                                     } else {
-                                        // Menampilkan toast jika nama grup kosong
-                                        println("Nama Grup: ${name}")
-                                        Toast.makeText(context, "Nama grup tidak boleh kosong", Toast.LENGTH_SHORT).show()
+                                        println("Nama Grup tidak boleh kosong: $name")
                                     }
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -240,7 +255,7 @@ fun UserManagementScreen() {
 
 
 @Composable
-fun UserItem(user: User, onDelete: () -> Unit, onAddGroup: (String) -> Unit) {
+fun UserItem(user: User, onDelete: () -> Unit, onAddGroup: (String) -> Unit, onDeleteGroup: (Int?) -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -265,9 +280,30 @@ fun UserItem(user: User, onDelete: () -> Unit, onAddGroup: (String) -> Unit) {
 
         // Menampilkan Groups
         if (user.groups.isNotEmpty()) {
-            Text(text = "Groups:", style = MaterialTheme.typography.bodyMedium)
-            user.groups.forEach { group ->
-                Text(text = "- ${group.name}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Groups:", style = MaterialTheme.typography.bodyLarge)
+
+            Column {
+                user.groups.forEach { group ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "- ${group.name}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f) // Membuat teks mengisi ruang yang tersedia
+                        )
+
+                        Button(
+                            onClick = { onDeleteGroup(group.id) }, // Mengirim group.id yang sesuai
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Text("Delete Group")
+                        }
+                    }
+                }
             }
         } else {
             Text(text = "No groups", style = MaterialTheme.typography.bodySmall)
