@@ -2,6 +2,7 @@ package com.example.schedo.network
 
 import com.example.schedo.model.User
 import com.example.schedo.model.Group
+import com.example.schedo.model.Project
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -24,9 +25,19 @@ interface ApiService {
         @Path("id") id: Int,
         @Body name: GroupRequest
     ): Response<Group>
+
+    @POST("users/{id}/groups/{id}/projects")
+    suspend fun addprojecttoGroup(
+        @Path("id") id: Int,
+        @Body name: ProjectRequest
+    ): Response<Project>
 }
 
 // ✅ Model request untuk menambahkan grup ke user
 data class GroupRequest(
+    val name: String
+)
+
+data class ProjectRequest(
     val name: String
 )
