@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,21 +13,52 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.schedo.model.User
+import com.example.schedo.network.RetrofitInstance
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTodoScreen(navController: NavController) {
-    var taskGroup by remember { mutableStateOf("Work") }
+    var taskGroup by remember { mutableStateOf("Pilih Group") }
     var projectName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf("01 May, 2022") }
     var endDate by remember { mutableStateOf("30 June, 2022") }
+    val coroutineScope = rememberCoroutineScope()
+    var users = remember { mutableStateListOf<User>() }
+    var isLoading by remember { mutableStateOf(false) }
+
+
+    fun fetchUsers() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getUsers()
+                users.clear()
+                users.addAll(response)
+                println("Fetched users: $response")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error fetching users: ${e.message}")
+            }
+            isLoading = false
+        }
+    }
+
+    // Memuat data saat pertama kali dibuka
+    LaunchedEffect(Unit) {
+        fetchUsers()
+    }
+
 
     Scaffold(
         topBar = {
@@ -52,11 +84,13 @@ fun AddTodoScreen(navController: NavController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            CardField("Task Group", taskGroup, isDropdown = true) { taskGroup = it }
-            CardField("Project Name", projectName) { projectName = it }
-            CardField("Description", description, isMultiline = true) { description = it }
-            CardField("Start Date", startDate, isDatePicker = true) { startDate = it }
-            CardField("End Date", endDate, isDatePicker = true) { endDate = it }
+
+                CardField(user = null, users = users,"Task Group", taskGroup, isDropdown = true) { taskGroup = it }
+                CardField(user = null, users = users,"Project Name", projectName) { projectName = it }
+                CardField(user = null, users = users,"Description", description, isMultiline = true) { description = it }
+                CardField(user = null, users = users,"Start Date", startDate, isDatePicker = true) { startDate = it }
+                CardField(user = null, users = users,"End Date", endDate, isDatePicker = true) { endDate = it }
+
 
             Button(
                 onClick = { /* Save action */ },
@@ -72,6 +106,8 @@ fun AddTodoScreen(navController: NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardField(
+    user: User?,
+    users: List<User>,
     label: String,
     value: String,
     isMultiline: Boolean = false,
@@ -81,7 +117,14 @@ fun CardField(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    val options = listOf("Work", "Personal", "Study")
+
+    // Ambil daftar grup dari semua user dan hilangkan duplikasi
+//    val taskGroups = users.flatMap { it.groups }.map { it.name }.distinct()
+    val taskGroups = users
+        .find { it.id == 1 } // Cari user dengan ID 1
+        ?.groups // Ambil grup dari user tersebut
+        ?.map { it.name } // Ambil hanya nama grup
+        ?.distinct() ?: emptyList()
 
     if (showDatePicker) {
         DatePickerDialog(
@@ -117,19 +160,36 @@ fun CardField(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(text = value, fontSize = 16.sp, modifier = Modifier.weight(1f))
+
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                         }
+
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            options.forEach { option ->
+                            taskGroups.forEach { groupName ->
                                 DropdownMenuItem(
-                                    text = { Text(option) },
+                                    text = { Text(groupName) },
                                     onClick = {
-                                        onValueChange(option)
+                                        onValueChange(groupName) // Simpan nama grup yang dipilih
                                         expanded = false
                                     }
                                 )
                             }
+                            Divider()
+
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add")
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Add New Task Group")
+                                    }
+                                },
+                                onClick = {
+//                                        showAddDialog = true
+                                    expanded = false
+                                }
+                            )
                         }
                     }
                 }
@@ -168,6 +228,7 @@ fun CardField(
         }
     }
 }
+
 
 fun formatDate(millis: Long): String {
     val sdf = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
