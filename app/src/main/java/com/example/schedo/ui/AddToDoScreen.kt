@@ -1,7 +1,5 @@
 package com.example.schedo.ui
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.compose.ui.graphics.vector.ImageVector
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,7 +30,14 @@ fun AddTodoScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                title = {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -81,8 +87,20 @@ fun CardField(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    val options = listOf("Work", "Personal", "Study")
+    var showAddDialog by remember { mutableStateOf(false) }
 
+    // Daftar task group default + ikon bawaan
+    var taskGroups by remember {
+        mutableStateOf(
+            mutableListOf(
+                "Work" to Icons.Default.Work,
+                "Personal" to Icons.Default.Person,
+                "Study" to Icons.Default.School
+            )
+        )
+    }
+
+    // Menampilkan dialog date picker jika dibuka
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -101,13 +119,34 @@ fun CardField(
         }
     }
 
+    // Menampilkan dialog untuk menambahkan Task Group baru
+    if (showAddDialog) {
+        AddTaskGroupDialog(
+            onDismiss = { showAddDialog = false },
+            onAddTaskGroup = { newName, newIcon ->
+                taskGroups.add(newName to newIcon)
+                onValueChange(newName) // Pilih otomatis yang baru ditambahkan
+            }
+        )
+    }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFCFD8DC)), // Warna seragam
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Light, color = Color.Gray)
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .background(Color(0xFFCFD8DC))
+        ) {
+            Text(
+                text = label,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Black
+            )
             Spacer(modifier = Modifier.height(4.dp))
 
             when {
@@ -116,20 +155,54 @@ fun CardField(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = value, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        val selectedIcon = taskGroups.find { it.first == value }?.second ?: Icons.Default.Help
+
+                        Icon(imageVector = selectedIcon, contentDescription = "Task Group Icon")
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = value,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                         }
+
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            options.forEach { option ->
+                            taskGroups.forEach { (name, icon) ->
                                 DropdownMenuItem(
-                                    text = { Text(option) },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(imageVector = icon, contentDescription = null)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(name)
+                                        }
+                                    },
                                     onClick = {
-                                        onValueChange(option)
+                                        onValueChange(name)
                                         expanded = false
                                     }
                                 )
                             }
+
+                            Divider()
+
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add")
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Add New Task Group")
+                                    }
+                                },
+                                onClick = {
+                                    showAddDialog = true
+                                    expanded = false
+                                }
+                            )
                         }
                     }
                 }
@@ -139,7 +212,12 @@ fun CardField(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = value, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        Text(
+                            text = value,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
                         IconButton(onClick = { showDatePicker = true }) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = "Pick Date")
                         }
@@ -152,21 +230,68 @@ fun CardField(
                         onValueChange = onValueChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.LightGray, shape = RoundedCornerShape(8.dp)),
+                            .background(Color(0xFFCFD8DC), shape = RoundedCornerShape(8.dp)), // Warna seragam
                         singleLine = !isMultiline,
                         maxLines = if (isMultiline) 5 else 1,
-                        readOnly = false,
+                        textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold),
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
                             disabledBorderColor = Color.Transparent,
-                            containerColor = Color.LightGray
+                            containerColor = Color(0xFFCFD8DC) // Warna seragam
                         )
                     )
                 }
             }
         }
     }
+}
+
+// Dialog untuk menambahkan Task Group baru
+@Composable
+fun AddTaskGroupDialog(onDismiss: () -> Unit, onAddTaskGroup: (String, ImageVector) -> Unit) {
+    var newTaskGroup by remember { mutableStateOf("") }
+    var selectedIcon by remember { mutableStateOf(Icons.Default.Star) }
+    val iconOptions = listOf(Icons.Default.Star, Icons.Default.Home, Icons.Default.Favorite, Icons.Default.Event)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                if (newTaskGroup.isNotBlank()) {
+                    onAddTaskGroup(newTaskGroup, selectedIcon)
+                    onDismiss()
+                }
+            }) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+        title = { Text("Add New Task Group") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = newTaskGroup,
+                    onValueChange = { newTaskGroup = it },
+                    label = { Text("Task Group Name") }
+                )
+
+                Text("Choose an Icon:")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    iconOptions.forEach { icon ->
+                        IconButton(onClick = { selectedIcon = icon }) {
+                            Icon(imageVector = icon, contentDescription = "Icon Option")
+                        }
+                    }
+                }
+            }
+        }
+    )
 }
 
 fun formatDate(millis: Long): String {
