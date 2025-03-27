@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -247,12 +249,26 @@ fun CardField(
     }
 }
 
-// Dialog untuk menambahkan Task Group baru
 @Composable
 fun AddTaskGroupDialog(onDismiss: () -> Unit, onAddTaskGroup: (String, ImageVector) -> Unit) {
     var newTaskGroup by remember { mutableStateOf("") }
     var selectedIcon by remember { mutableStateOf(Icons.Default.Star) }
-    val iconOptions = listOf(Icons.Default.Star, Icons.Default.Home, Icons.Default.Favorite, Icons.Default.Event)
+    var customEmoji by remember { mutableStateOf("") }
+    var useEmoji by remember { mutableStateOf(false) }
+
+    val iconOptions = listOf(
+        Icons.Default.Star, Icons.Default.Home, Icons.Default.Favorite, Icons.Default.Event,
+        Icons.Default.Work, Icons.Default.Person, Icons.Default.School, Icons.Default.ShoppingCart,
+        Icons.Default.Flight, Icons.Default.CarRental, Icons.Default.Pets, Icons.Default.LocalHospital,
+        Icons.Default.Build, Icons.Default.Business, Icons.Default.Call, Icons.Default.Chat,
+        Icons.Default.Computer, Icons.Default.DirectionsBike, Icons.Default.DirectionsBus,
+        Icons.Default.DirectionsCar, Icons.Default.DirectionsRun, Icons.Default.Face,
+        Icons.Default.Fastfood, Icons.Default.FitnessCenter, Icons.Default.Laptop, Icons.Default.LocalCafe,
+        Icons.Default.LocalDining, Icons.Default.LocalDrink, Icons.Default.LocalGroceryStore,
+        Icons.Default.LocalMall, Icons.Default.LocalMovies, Icons.Default.LocalOffer, Icons.Default.LocalPizza,
+        Icons.Default.LocalSee, Icons.Default.MusicNote, Icons.Default.PhotoCamera, Icons.Default.SportsBasketball,
+        Icons.Default.SportsEsports, Icons.Default.SportsSoccer, Icons.Default.Train, Icons.Default.Watch
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -278,14 +294,37 @@ fun AddTaskGroupDialog(onDismiss: () -> Unit, onAddTaskGroup: (String, ImageVect
                     label = { Text("Task Group Name") }
                 )
 
-                Text("Choose an Icon:")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
+                Text("Choose an Icon:", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+
+                val state = rememberLazyGridState()
+
+                Box(
+                    modifier = Modifier
+                        .height(200.dp) // Batasi tinggi agar bisa discroll
+                        .background(Color.LightGray.copy(alpha = 0.2f))
                 ) {
-                    iconOptions.forEach { icon ->
-                        IconButton(onClick = { selectedIcon = icon }) {
-                            Icon(imageVector = icon, contentDescription = "Icon Option")
+                    LazyVerticalGrid(
+                        state = state,
+                        columns = GridCells.Fixed(6), // Tampilkan ikon dalam 6 kolom
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(iconOptions) { icon ->
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        if (icon == selectedIcon) Color(0xFF6750A4).copy(alpha = 0.2f) else Color.Transparent,
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                            ) {
+                                IconButton(onClick = { selectedIcon = icon }) {
+                                    Icon(imageVector = icon, contentDescription = "Icon Option")
+                                }
+                            }
                         }
                     }
                 }

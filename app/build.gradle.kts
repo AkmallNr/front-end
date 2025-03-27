@@ -86,5 +86,4 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.6.0")
     implementation("com.google.accompanist:accompanist-flowlayout:0.30.1")
     implementation("androidx.compose.material:material-icons-extended:1.5.0")
-
 }
