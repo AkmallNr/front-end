@@ -5,6 +5,8 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import retrofit2.Response
 import retrofit2.http.*
+import java.sql.Date
+import java.time.LocalDate
 
 interface ApiService {
     @GET("users")
@@ -26,10 +28,11 @@ interface ApiService {
         @Body name: GroupRequest
     ): Response<Group>
 
-    @POST("users/{id}/groups/{id}/projects")
-    suspend fun addprojecttoGroup(
-        @Path("id") id: Int,
-        @Body name: ProjectRequest
+    @POST("users/{userId}/groups/{groupId}/projects")
+    suspend fun addProjectToGroup(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Body projectRequest: ProjectRequest
     ): Response<Project>
 }
 
@@ -39,5 +42,8 @@ data class GroupRequest(
 )
 
 data class ProjectRequest(
-    val name: String
+    val name: String,
+    val description: String,
+    val startDate: String,
+    val endDate: String
 )
