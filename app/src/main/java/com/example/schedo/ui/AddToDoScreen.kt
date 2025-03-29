@@ -1,45 +1,129 @@
 package com.example.schedo.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.schedo.model.Project
+import com.example.schedo.model.User
+import com.example.schedo.network.GroupRequest
+import com.example.schedo.network.ProjectRequest
+import com.example.schedo.network.RetrofitInstance
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTodoScreen(navController: NavController) {
-    var taskGroup by remember { mutableStateOf("Work") }
+    var taskGroup by remember { mutableStateOf("Pilih Group") }
     var projectName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf("01 May, 2022") }
-    var endDate by remember { mutableStateOf("30 June, 2022") }
+    var startDate by remember { mutableStateOf("Pilih Tanggal Mulai") }
+    var endDate by remember { mutableStateOf("Pilih Tanggal Selesai") }
+    val coroutineScope = rememberCoroutineScope()
+    var users = remember { mutableStateListOf<User>() }
+    var isLoading by remember { mutableStateOf(false) }
+
+    // Fungsi untuk mengambil data pengguna
+    fun fetchUsers() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getUsers()
+                users.clear()
+                users.addAll(response)
+                println("Fetched users: $response")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error fetching users: ${e.message}")
+            }
+            isLoading = false
+        }
+    }
+
+    // Memuat data saat pertama kali dibuka
+    LaunchedEffect(Unit) {
+        fetchUsers()
+    }
+
+    // Fungsi untuk menyimpan proyek
+    fun saveProject() {
+        val projectData = ProjectRequest(
+            name = projectName,
+            description = description,
+            startDate = startDate,
+            endDate = endDate
+        )
+        val isiProject = mapOf(
+            "nama user" to (users.find { it.id == 1 }?.name ?: "Default Name"),
+            "taskgroup" to taskGroup,
+            "projectName" to projectName,
+            "description" to description,
+            "startDate" to startDate,
+            "endDate" to endDate
+        )
+        println("Isi project : $isiProject")
+        println("Saving project with data: $projectData")
+
+        coroutineScope.launch {
+            val user = users.find { it.id == 1 } ?: User(1, "Default Name", "ab123", "cb12433")
+            println("Task Group yang dicari: '$taskGroup'")
+            user.groups.forEach { println("Grup tersedia: '${it.name}'") }
+
+            val groupId = user.groups.find { it.name == taskGroup }?.id ?: 0
+            val userId = user.id ?: 0
+            println("user id : ${userId}")
+            println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
+            println("grup id : ${groupId}")
+            try {
+                val response = RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                if (response.isSuccessful) {
+                    println("Project saved successfully!")
+                    // Navigasi ke AddTaskScreen
+                    navController.navigate("add_task") {
+                        popUpTo(BottomNavItem.TODO.route) { inclusive = false }
+                    }
+                    // Reset field
+                    taskGroup = "Pilih Group"
+                    projectName = ""
+                    description = ""
+                    startDate = "Pilih Tanggal Mulai"
+                    endDate = "Pilih Tanggal Selesai"
+                    fetchUsers()
+                } else {
+                    println("Failed to save project: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error saving project: ${e.message}")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
+                title = { Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -60,14 +144,116 @@ fun AddTodoScreen(navController: NavController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            CardField("Task Group", taskGroup, isDropdown = true) { taskGroup = it }
-            CardField("Project Name", projectName) { projectName = it }
-            CardField("Description", description, isMultiline = true) { description = it }
-            CardField("Start Date", startDate, isDatePicker = true) { startDate = it }
-            CardField("End Date", endDate, isDatePicker = true) { endDate = it }
+            // Ambil user dengan ID 1 atau gunakan default
+            val user = users.find { it.id == 1 } ?: User(1, "Default Name", "ab123", "cb12433")
 
+            CardField(
+                user = user,
+                users = users,
+                label = "Task Group",
+                value = taskGroup,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isDropdown = true
+            ) { taskGroup = it }
+
+            CardField(
+                user = user,
+                users = users,
+                label = "Project Name",
+                value = projectName,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            ) { projectName = it }
+
+            CardField(
+                user = user,
+                users = users,
+                label = "Description",
+                value = description,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isMultiline = true
+            ) { description = it }
+
+            CardField(
+                user = user,
+                users = users,
+                label = "Start Date",
+                value = startDate,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isDatePicker = true
+            ) { startDate = it }
+
+            CardField(
+                user = user,
+                users = users,
+                label = "End Date",
+                value = endDate,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isDatePicker = true
+            ) { endDate = it }
+
+            // Tombol Save Project
             Button(
-                onClick = { /* Save action */ },
+                onClick = { saveProject() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
             ) {
@@ -80,34 +266,63 @@ fun AddTodoScreen(navController: NavController) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardField(
+    user: User,
+    users: List<User>,
     label: String,
     value: String,
     isMultiline: Boolean = false,
     isDropdown: Boolean = false,
     isDatePicker: Boolean = false,
+    onAddTaskGroup: (String) -> Unit,
     onValueChange: (String) -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var name by remember { mutableStateOf(" ") }
+    var pengguna = remember { mutableStateListOf<User>() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val currentOnAddGroup = rememberUpdatedState(onAddTaskGroup)
 
-    // Daftar task group default + ikon bawaan
-    var taskGroups by remember {
-        mutableStateOf(
-            mutableListOf(
-                "Work" to Icons.Default.Work,
-                "Personal" to Icons.Default.Person,
-                "Study" to Icons.Default.School
-            )
-        )
+
+
+
+    fun fetchUsers() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getUsers()
+                pengguna.clear()
+                pengguna.addAll(response)
+                println("Fetched users: $response")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error fetching users: ${e.message}")
+            }
+            isLoading = false
+        }
     }
 
-    // Menampilkan dialog date picker jika dibuka
+//     Memuat data saat pertama kali dibuka
+    LaunchedEffect(Unit) {
+        fetchUsers()
+    }
+    val taskGroups = users
+        .find { it.id == 1 } // Cari user dengan ID 1
+        ?.groups // Ambil grup dari user tersebut
+        ?.map { it.name } // Ambil hanya nama grup
+        ?.distinct() ?: emptyList()
+
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("OK") }
+                TextButton(
+                    onClick = {
+                        showDatePicker = false }) { Text("OK") }
             }
         ) {
             val datePickerState = rememberDatePickerState()
@@ -116,6 +331,7 @@ fun CardField(
                 datePickerState.selectedDateMillis?.let { millis ->
                     val formattedDate = formatDate(millis)
                     onValueChange(formattedDate)
+                    println("Tanggal dipilih : ${formattedDate}")
                 }
             }
         }
@@ -123,32 +339,88 @@ fun CardField(
 
     // Menampilkan dialog untuk menambahkan Task Group baru
     if (showAddDialog) {
-        AddTaskGroupDialog(
-            onDismiss = { showAddDialog = false },
-            onAddTaskGroup = { newName, newIcon ->
-                taskGroups.add(newName to newIcon)
-                onValueChange(newName) // Pilih otomatis yang baru ditambahkan
-            }
-        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween){
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Add Group") },
+                text = {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Group Name") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            imeAction = ImeAction.Done // Menutup keyboard saat "Done" ditekan
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                keyboardController?.hide() // Menutup keyboard saat "Done"
+                            }
+                        )
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        // Pastikan input nama tidak kosong
+                        if (name.isNotEmpty() && !isLoading) {
+                            isLoading = true // Mengatur status loading saat operasi dimulai
+                            Log.d("AddGroup", "Group Name: $name")  // Menambahkan log untuk debugging
+
+                            coroutineScope.launch {
+                                try {
+                                    user.id?.let { userId ->
+                                        val groupRequest = GroupRequest(name)
+                                        Log.d("AddGroup", "Sending request with: $groupRequest") // Log request body
+
+                                        val response = RetrofitInstance.api.addGroupToUser(userId, groupRequest)
+                                        if (response.isSuccessful) {
+                                            currentOnAddGroup.value(name) // Gunakan nilai yang selalu terbaru
+                                            showAddDialog = false  // Menutup dialog setelah berhasil
+                                        } else {
+                                            val errorBody = response.errorBody()?.string()
+                                            Log.e("Retrofit Error", "Error: $errorBody")
+                                        }
+                                    }
+                                } catch (e: HttpException) {
+                                    val errorResponse = e.response()?.errorBody()?.string()
+                                    Log.e("HttpException", "Error body: $errorResponse")
+                                } catch (e: Exception) {
+                                    Log.e("Exception", "Unexpected error: ${e.message}")
+                                } finally {
+                                    isLoading = false // Mengubah status loading menjadi false setelah operasi selesai
+                                }
+                            }
+                            keyboardController?.hide() // 🔥 Tutup keyboard setelah submit
+                        } else {
+                            // Jika nama grup kosong
+                            Log.d("AddGroup", "Group Name is empty!")  // Log jika name kosong
+                            errorMessage = "Nama grup tidak boleh kosong"
+                        }
+                    }) {
+                        if (isLoading) {
+                            CircularProgressIndicator() // Menampilkan indikator loading saat mengirim request
+                        } else {
+                            Text("Tambah Group")
+                        }
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { showAddDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
+
 
     Card(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFCFD8DC)), // Warna seragam
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .background(Color(0xFFCFD8DC))
-        ) {
-            Text(
-                text = label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
-            )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Light, color = Color.Gray)
             Spacer(modifier = Modifier.height(4.dp))
 
             when {
@@ -157,39 +429,22 @@ fun CardField(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val selectedIcon = taskGroups.find { it.first == value }?.second ?: Icons.Default.Help
-
-                        Icon(imageVector = selectedIcon, contentDescription = "Task Group Icon")
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = value,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Text(text = value, fontSize = 16.sp, modifier = Modifier.weight(1f))
 
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
                         }
 
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            taskGroups.forEach { (name, icon) ->
+                            taskGroups.forEach { groupName ->
                                 DropdownMenuItem(
-                                    text = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(imageVector = icon, contentDescription = null)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(name)
-                                        }
-                                    },
+                                    text = { Text(groupName) },
                                     onClick = {
-                                        onValueChange(name)
+                                        onValueChange(groupName) // Simpan nama grup yang dipilih
                                         expanded = false
                                     }
                                 )
                             }
-
                             Divider()
 
                             DropdownMenuItem(
@@ -203,6 +458,7 @@ fun CardField(
                                 onClick = {
                                     showAddDialog = true
                                     expanded = false
+                                    fetchUsers()
                                 }
                             )
                         }
@@ -214,12 +470,7 @@ fun CardField(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = value,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Text(text = value, fontSize = 16.sp, modifier = Modifier.weight(1f))
                         IconButton(onClick = { showDatePicker = true }) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = "Pick Date")
                         }
@@ -232,15 +483,15 @@ fun CardField(
                         onValueChange = onValueChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFCFD8DC), shape = RoundedCornerShape(8.dp)), // Warna seragam
+                            .background(Color.LightGray, shape = RoundedCornerShape(8.dp)),
                         singleLine = !isMultiline,
                         maxLines = if (isMultiline) 5 else 1,
-                        textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold),
+                        readOnly = false,
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
                             disabledBorderColor = Color.Transparent,
-                            containerColor = Color(0xFFCFD8DC) // Warna seragam
+                            containerColor = Color.LightGray
                         )
                     )
                 }
@@ -249,91 +500,8 @@ fun CardField(
     }
 }
 
-@Composable
-fun AddTaskGroupDialog(onDismiss: () -> Unit, onAddTaskGroup: (String, ImageVector) -> Unit) {
-    var newTaskGroup by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf(Icons.Default.Star) }
-    var customEmoji by remember { mutableStateOf("") }
-    var useEmoji by remember { mutableStateOf(false) }
-
-    val iconOptions = listOf(
-        Icons.Default.Star, Icons.Default.Home, Icons.Default.Favorite, Icons.Default.Event,
-        Icons.Default.Work, Icons.Default.Person, Icons.Default.School, Icons.Default.ShoppingCart,
-        Icons.Default.Flight, Icons.Default.CarRental, Icons.Default.Pets, Icons.Default.LocalHospital,
-        Icons.Default.Build, Icons.Default.Business, Icons.Default.Call, Icons.Default.Chat,
-        Icons.Default.Computer, Icons.Default.DirectionsBike, Icons.Default.DirectionsBus,
-        Icons.Default.DirectionsCar, Icons.Default.DirectionsRun, Icons.Default.Face,
-        Icons.Default.Fastfood, Icons.Default.FitnessCenter, Icons.Default.Laptop, Icons.Default.LocalCafe,
-        Icons.Default.LocalDining, Icons.Default.LocalDrink, Icons.Default.LocalGroceryStore,
-        Icons.Default.LocalMall, Icons.Default.LocalMovies, Icons.Default.LocalOffer, Icons.Default.LocalPizza,
-        Icons.Default.LocalSee, Icons.Default.MusicNote, Icons.Default.PhotoCamera, Icons.Default.SportsBasketball,
-        Icons.Default.SportsEsports, Icons.Default.SportsSoccer, Icons.Default.Train, Icons.Default.Watch
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                if (newTaskGroup.isNotBlank()) {
-                    onAddTaskGroup(newTaskGroup, selectedIcon)
-                    onDismiss()
-                }
-            }) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-        title = { Text("Add New Task Group") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = newTaskGroup,
-                    onValueChange = { newTaskGroup = it },
-                    label = { Text("Task Group Name") }
-                )
-
-                Text("Choose an Icon:", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-
-                val state = rememberLazyGridState()
-
-                Box(
-                    modifier = Modifier
-                        .height(200.dp) // Batasi tinggi agar bisa discroll
-                        .background(Color.LightGray.copy(alpha = 0.2f))
-                ) {
-                    LazyVerticalGrid(
-                        state = state,
-                        columns = GridCells.Fixed(6), // Tampilkan ikon dalam 6 kolom
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(iconOptions) { icon ->
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(
-                                        if (icon == selectedIcon) Color(0xFF6750A4).copy(alpha = 0.2f) else Color.Transparent,
-                                        shape = androidx.compose.foundation.shape.CircleShape
-                                    )
-                            ) {
-                                IconButton(onClick = { selectedIcon = icon }) {
-                                    Icon(imageVector = icon, contentDescription = "Icon Option")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    )
-}
 
 fun formatDate(millis: Long): String {
-    val sdf = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     return sdf.format(Date(millis))
 }

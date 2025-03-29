@@ -1,5 +1,6 @@
 package com.example.schedo.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -8,6 +9,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,9 +25,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.schedo.model.User
+import com.example.schedo.network.RetrofitInstance
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
+    var users = remember { mutableStateListOf<User>() }
+    val coroutineScope = rememberCoroutineScope()
+    var isLoading by remember { mutableStateOf(false) }
+
+
+
+    fun fetchUsers() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getUsers()
+                users.clear()
+                users.addAll(response)
+                println("Fetched users: $response")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error fetching users: ${e.message}")
+            }
+            isLoading = false
+        }
+    }
+
+    // Memuat data saat pertama kali dibuka
+    LaunchedEffect(Unit) {
+        fetchUsers()
+    }
+
     Scaffold(
 //        floatingActionButton = {
 //            FloatingActionButton(
@@ -50,8 +88,13 @@ fun HomeScreen(navController: NavHostController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
+                    val groupName = "ngamprah plosok"
+                    val userInGroup = users.find { user ->
+                        user.groups.any { it.name.trim() == groupName.trim() }
+                    }?.name
+
                     Text("Hello!", fontSize = 20.sp, color = Color.Gray)
-                    Text("Livia Vaccaro", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("${userInGroup}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 }
                 Icon(
                     imageVector = Icons.Filled.Notifications,
@@ -94,9 +137,35 @@ fun HomeScreen(navController: NavHostController) {
             // 🔹 Task Groups Section
             Text("Task Groups", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TaskGroupCard("Office Project", "23 Tasks", { 0.7f }, Color(0xFFFFC1E3))
-                TaskGroupCard("Personal Project", "30 Tasks", { 0.52f }, Color(0xFFB3E5FC))
-                TaskGroupCard("Daily Study", "30 Tasks", { 0.87f }, Color(0xFFFFF59D))
+                users.forEach { user ->
+                    val group = user.groups.find { it.name == " ngamprah plosok" }
+
+                    if (group == null) {
+                        Log.e("DEBUG", "Group 'Group Akmal' tidak ditemukan untuk user ${user.id}")
+                        Log.d("DEBUG", "Total users: ${users.size}")
+                        Log.d("DEBUG", "User ${user.id} memiliki grup: ${user.groups.map { it.name }}")
+                    } else {
+                        Log.d("DEBUG", "Group ditemukan: ${group.name}")
+                    }
+
+                    val projects = group?.projects?.map { it } ?: emptyList()
+
+                    if (projects.isEmpty()) {
+                        Log.e("DEBUG", "Tidak ada proyek dalam grup '${group?.name}'")
+                    } else {
+                        projects.forEach { project ->
+                            Log.d("DEBUG", "Project ditemukan: ${project.name}, Deskripsi: ${project.description}")
+
+                            TaskGroupCard(
+                                project.name,
+                                project.description,
+                                { 0.7f },
+                                Color(0xFFFFC1E3)
+                            )
+                        }
+                    }
+                }
+
             }
         }
     }
