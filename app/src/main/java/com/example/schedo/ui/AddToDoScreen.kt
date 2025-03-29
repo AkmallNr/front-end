@@ -44,7 +44,7 @@ fun AddTodoScreen(navController: NavController) {
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
 
-
+    // Fungsi untuk mengambil data pengguna
     fun fetchUsers() {
         coroutineScope.launch {
             isLoading = true
@@ -66,6 +66,59 @@ fun AddTodoScreen(navController: NavController) {
         fetchUsers()
     }
 
+    // Fungsi untuk menyimpan proyek
+    fun saveProject() {
+        val projectData = ProjectRequest(
+            name = projectName,
+            description = description,
+            startDate = startDate,
+            endDate = endDate
+        )
+        val isiProject = mapOf(
+            "nama user" to (users.find { it.id == 1 }?.name ?: "Default Name"),
+            "taskgroup" to taskGroup,
+            "projectName" to projectName,
+            "description" to description,
+            "startDate" to startDate,
+            "endDate" to endDate
+        )
+        println("Isi project : $isiProject")
+        println("Saving project with data: $projectData")
+
+        coroutineScope.launch {
+            val user = users.find { it.id == 1 } ?: User(1, "Default Name", "ab123", "cb12433")
+            println("Task Group yang dicari: '$taskGroup'")
+            user.groups.forEach { println("Grup tersedia: '${it.name}'") }
+
+            val groupId = user.groups.find { it.name == taskGroup }?.id ?: 0
+            val userId = user.id ?: 0
+            println("user id : ${userId}")
+            println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
+            println("grup id : ${groupId}")
+            try {
+                val response = RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                if (response.isSuccessful) {
+                    println("Project saved successfully!")
+                    // Navigasi ke AddTaskScreen
+                    navController.navigate("add_task") {
+                        popUpTo(BottomNavItem.TODO.route) { inclusive = false }
+                    }
+                    // Reset field
+                    taskGroup = "Pilih Group"
+                    projectName = ""
+                    description = ""
+                    startDate = "Pilih Tanggal Mulai"
+                    endDate = "Pilih Tanggal Selesai"
+                    fetchUsers()
+                } else {
+                    println("Failed to save project: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error saving project: ${e.message}")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -91,182 +144,120 @@ fun AddTodoScreen(navController: NavController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Ambil user dengan ID 1 atau gunakan default
+            val user = users.find { it.id == 1 } ?: User(1, "Default Name", "ab123", "cb12433")
 
-
-            users.forEach { user ->
-                CardField(
-                    user = users.find { it.id == 1 } ?: User(
-                        1, "Default Name", "ab123",
-                        "cb12433"
-                    ),
-                    users = users,
-                    "Task Group", taskGroup,
-                    onAddTaskGroup = { name ->
-                        coroutineScope.launch {
-                            try {
-                                if (name.isNotEmpty()) {
-                                    user.id?.let { userId ->
-                                        fetchUsers()
-                                    }
-                                } else {
-                                    println("Nama Grup tidak boleh kosong: $name")
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                    isDropdown = true
-                ) { taskGroup = it }
-                CardField(
-                    user = users.find { it.id == 1 } ?: User(
-                        1,
-                        "Default Name",
-                        "ab123",
-                        "cb12433"
-                    ), users = users, "Project Name", projectName,
-                    onAddTaskGroup = { name ->
-                        coroutineScope.launch {
-                            try {
-                                if (name.isNotEmpty()) {
-                                    user.id?.let { userId ->
-                                        fetchUsers()
-                                    }
-                                } else {
-                                    println("Nama Grup tidak boleh kosong: $name")
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                ) { projectName = it }
-                CardField(
-                    user = users.find { it.id == 1 } ?: User(
-                        1,
-                        "Default Name",
-                        "ab123",
-                        "cb12433"
-                    ), users = users, "Description", description,
-                    onAddTaskGroup = { name ->
-                        coroutineScope.launch {
-                            try {
-                                if (name.isNotEmpty()) {
-                                    user.id?.let { userId ->
-                                        fetchUsers()
-                                    }
-                                } else {
-                                    println("Nama Grup tidak boleh kosong: $name")
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                    isMultiline = true
-                ) { description = it }
-                CardField(
-                    user = users.find { it.id == 1 } ?: User(
-                        1,
-                        "Default Name",
-                        "ab123",
-                        "cb12433"
-                    ), users = users, "Start Date", startDate,
-                    onAddTaskGroup = { name ->
-                        coroutineScope.launch {
-                            try {
-                                if (name.isNotEmpty()) {
-                                    user.id?.let { userId ->
-                                        fetchUsers()
-                                    }
-                                } else {
-                                    println("Nama Grup tidak boleh kosong: $name")
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                    isDatePicker = true
-                ) { startDate = it }
-                CardField(
-                    user = users.find { it.id == 1 } ?: User(
-                        1,
-                        "Default Name",
-                        "ab123",
-                        "cb12433"
-                    ), users = users, "End Date", endDate,
-                    onAddTaskGroup = { name ->
-                        coroutineScope.launch {
-                            try {
-                                if (name.isNotEmpty()) {
-                                    user.id?.let { userId ->
-                                        fetchUsers()
-                                    }
-                                } else {
-                                    println("Nama Grup tidak boleh kosong: $name")
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-                    },
-                    isDatePicker = true
-                ) { endDate = it }
-
-                fun saveProject() {
-                    val projectData = ProjectRequest(name = projectName, description = description, startDate = startDate, endDate = endDate)
-                    val isiProject = mapOf(
-                        "nama user" to user.name,
-                        "taskgroup" to taskGroup,
-                        "projectName" to projectName,
-                        "description" to description,
-                        "startDate" to startDate,
-                        "endDate" to endDate)
-                    println("Isi project : $isiProject")
-                    println("Saving project with data: $projectData")
-
-
+            CardField(
+                user = user,
+                users = users,
+                label = "Task Group",
+                value = taskGroup,
+                onAddTaskGroup = { name ->
                     coroutineScope.launch {
-                        println("Task Group yang dicari: '$taskGroup'")
-                        user.groups.forEach { println("Grup tersedia: '${it.name}'") }
-
-                        val groupId = user.groups.find { it.name == taskGroup }?.id ?: 0
-                        val userId = user.id ?: 0
-                        println("user id : ${userId}")
-                        println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
-                        println("grup id : ${groupId}")
                         try {
-                            val response = RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
-                            if (response.isSuccessful) {
-                                println("Project saved successfully!")
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
                             } else {
-                                println("Failed to save project: ${response.errorBody()?.string()}")
+                                println("Nama Grup tidak boleh kosong: $name")
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            println("Error saving project: ${e.message}")
+                        }
+                    }
+                },
+                isDropdown = true
+            ) { taskGroup = it }
+
+            CardField(
+                user = user,
+                users = users,
+                label = "Project Name",
+                value = projectName,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
                     }
                 }
+            ) { projectName = it }
 
-                Button(
-                    onClick = { saveProject()
-                              taskGroup = taskGroup
-                              projectName = " "
-                              description = " "
-                              startDate = "Pilih Tanggal Mulai"
-                              endDate = "Pilih Tanggal Selesai"
-                                fetchUsers()
-                              },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
-                ) {
-                    Text("Save Project", color = Color.White)
-                }
+            CardField(
+                user = user,
+                users = users,
+                label = "Description",
+                value = description,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isMultiline = true
+            ) { description = it }
 
+            CardField(
+                user = user,
+                users = users,
+                label = "Start Date",
+                value = startDate,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isDatePicker = true
+            ) { startDate = it }
 
+            CardField(
+                user = user,
+                users = users,
+                label = "End Date",
+                value = endDate,
+                onAddTaskGroup = { name ->
+                    coroutineScope.launch {
+                        try {
+                            if (name.isNotEmpty()) {
+                                user.id?.let { fetchUsers() }
+                            } else {
+                                println("Nama Grup tidak boleh kosong: $name")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                },
+                isDatePicker = true
+            ) { endDate = it }
 
+            // Tombol Save Project
+            Button(
+                onClick = { saveProject() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+            ) {
+                Text("Save Project", color = Color.White)
             }
         }
     }

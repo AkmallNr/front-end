@@ -32,6 +32,12 @@ fun AppNavHost(navController: NavHostController) {
             composable("add_todo") {
                 AddTodoScreen(navController)
             }
+            composable("add_task") { // Tambahkan rute untuk AddTaskScreen
+                AddTaskScreen(onTaskAdded = { task ->
+                    println("Task added: $task")
+                    navController.popBackStack() // Kembali ke layar sebelumnya setelah menambah task
+                })
+            }
             composable(BottomNavItem.JADWAL.route) {
                 ScheduleScreen(navController)
             }

@@ -88,7 +88,7 @@ fun HomeScreen(navController: NavHostController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    val groupName = "Group B"
+                    val groupName = "ngamprah plosok"
                     val userInGroup = users.find { user ->
                         user.groups.any { it.name.trim() == groupName.trim() }
                     }?.name
@@ -138,10 +138,12 @@ fun HomeScreen(navController: NavHostController) {
             Text("Task Groups", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 users.forEach { user ->
-                    val group = user.groups.find { it.name == "Group B" }
+                    val group = user.groups.find { it.name == " ngamprah plosok" }
 
                     if (group == null) {
                         Log.e("DEBUG", "Group 'Group Akmal' tidak ditemukan untuk user ${user.id}")
+                        Log.d("DEBUG", "Total users: ${users.size}")
+                        Log.d("DEBUG", "User ${user.id} memiliki grup: ${user.groups.map { it.name }}")
                     } else {
                         Log.d("DEBUG", "Group ditemukan: ${group.name}")
                     }
