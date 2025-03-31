@@ -73,8 +73,14 @@ fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit)
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Input Judul Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "Add Task",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
