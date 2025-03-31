@@ -13,6 +13,13 @@ interface ApiService {
     @GET("users")
     suspend fun getUsers(): List<User>
 
+    @GET("users/{userId}/groups/{groupId}/projects")
+    suspend fun getProjectsByGroup(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int
+    ): List<Project>
+
+
     @POST("users")
     suspend fun createUser(@Body user: User): User
 
@@ -47,7 +54,8 @@ interface ApiService {
 
 // ✅ Model request untuk menambahkan grup ke user
 data class GroupRequest(
-    val name: String
+    val name: String,
+    val icon: String
 )
 
 data class ProjectRequest(
