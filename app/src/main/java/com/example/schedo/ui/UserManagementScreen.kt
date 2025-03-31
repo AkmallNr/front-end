@@ -1,39 +1,15 @@
 package com.example.schedo.ui.theme
 
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -51,11 +27,10 @@ fun UserManagementScreen() {
     var newEmail by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
-    val context = LocalContext.current  // Mengambil context dari komposabel
     var showAddUser by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-
+    // Fungsi fetchUsers didefinisikan di sini
     fun fetchUsers() {
         coroutineScope.launch {
             isLoading = true
@@ -72,7 +47,6 @@ fun UserManagementScreen() {
         }
     }
 
-    // Memuat data saat pertama kali dibuka
     LaunchedEffect(Unit) {
         fetchUsers()
     }
@@ -84,19 +58,15 @@ fun UserManagementScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("User List", style = MaterialTheme.typography.headlineSmall)
-
         Spacer(modifier = Modifier.height(8.dp))
 
         if (isLoading) {
             CircularProgressIndicator()
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f) // Agar daftar user bisa scroll
-            ) {
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(users) { user ->
-                    // Deklarasi onDeleteGroup di luar UserItem
                     val onDeleteGroup: (Int?) -> Unit = { groupId ->
-                        groupId?.let { id ->  // Pastikan ID tidak null sebelum eksekusi
+                        groupId?.let { id ->
                             user.id?.let { userId ->
                                 coroutineScope.launch {
                                     try {
@@ -111,7 +81,6 @@ fun UserManagementScreen() {
                         } ?: println("Error: Group ID is null")
                     }
 
-// Gunakan di UserItem
                     UserItem(
                         user = user,
                         onDelete = {
@@ -126,14 +95,12 @@ fun UserManagementScreen() {
                                 }
                             }
                         },
-                        onDeleteGroup = onDeleteGroup, // Sekarang sesuai dengan tipe (Int?) -> Unit
+                        onDeleteGroup = onDeleteGroup,
                         onAddGroup = { name ->
                             coroutineScope.launch {
                                 try {
                                     if (name.isNotEmpty()) {
-                                        user.id?.let { userId ->
-                                            fetchUsers()
-                                        }
+                                        user.id?.let { fetchUsers() }
                                     } else {
                                         println("Nama Grup tidak boleh kosong: $name")
                                     }
@@ -141,7 +108,8 @@ fun UserManagementScreen() {
                                     e.printStackTrace()
                                 }
                             }
-                        }
+                        },
+                        onFetchUsers = { fetchUsers() } // Oper fetchUsers sebagai parameter
                     )
                     Divider()
                 }
@@ -149,92 +117,62 @@ fun UserManagementScreen() {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = { showAddUser = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Button(onClick = { showAddUser = true }, modifier = Modifier.fillMaxWidth()) {
             Text("Add User")
         }
-
 
         if (showAddUser) {
             AlertDialog(
                 onDismissRequest = { showAddUser = false },
-                title = { Text("Add Group") },
+                title = { Text("Add User") },
                 text = {
-                    // Gunakan Column untuk menata elemen-elemen vertikal
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp) // Memberikan jarak antar elemen
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = newUserName,
                             onValueChange = { newUserName = it },
                             label = { Text("Enter Name") },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions.Default.copy(
-                                imeAction = ImeAction.Done // Menutup keyboard saat "Done" ditekan
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide() // Menutup keyboard saat "Done"
-                                }
-                            )
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { keyboardController?.hide() })
                         )
-
                         OutlinedTextField(
                             value = newEmail,
                             onValueChange = { newEmail = it },
                             label = { Text("Enter Email") },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions.Default.copy(
-                                imeAction = ImeAction.Done // Menutup keyboard saat "Done" ditekan
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide() // Menutup keyboard saat "Done"
-                                }
-                            )
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { keyboardController?.hide() })
                         )
-
                         OutlinedTextField(
                             value = newPass,
                             onValueChange = { newPass = it },
                             label = { Text("Enter Pass") },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions.Default.copy(
-                                imeAction = ImeAction.Done // Menutup keyboard saat "Done" ditekan
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide() // Menutup keyboard saat "Done"
-                                }
-                            )
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() })
                         )
                     }
                 },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                try {
-                                    val newUser = User(name = newUserName, email = newEmail, pass = newPass)
-                                    val createdUser = RetrofitInstance.api.createUser(newUser)
-                                    println("User created: $createdUser")
-                                    newUserName = ""
-                                    newEmail = ""
-                                    newPass = ""
-                                    fetchUsers()
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    println("Error creating user: ${e.message}")
-                                }
+                    Button(onClick = {
+                        coroutineScope.launch {
+                            try {
+                                val newUser = User(name = newUserName, email = newEmail, pass = newPass)
+                                val createdUser = RetrofitInstance.api.createUser(newUser)
+                                println("User created: $createdUser")
+                                newUserName = ""
+                                newEmail = ""
+                                newPass = ""
+                                fetchUsers()
+                                showAddUser = false
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                println("Error creating user: ${e.message}")
                             }
-                        },
-                    ) {
+                        }
+                    }) {
                         if (isLoading) {
-                            CircularProgressIndicator() // Menampilkan indikator loading saat mengirim request
+                            CircularProgressIndicator()
                         } else {
                             Text("Tambah User")
                         }
@@ -247,58 +185,52 @@ fun UserManagementScreen() {
                 }
             )
         }
-
-
     }
 }
 
-
 @Composable
-fun UserItem(user: User, onDelete: () -> Unit, onAddGroup: (String) -> Unit, onDeleteGroup: (Int?) -> Unit) {
+fun UserItem(
+    user: User,
+    onDelete: () -> Unit,
+    onAddGroup: (String) -> Unit,
+    onDeleteGroup: (Int?) -> Unit,
+    onFetchUsers: () -> Unit // Tambahkan parameter untuk fetchUsers
+) {
     var showDialog by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
+    var selectedIcon by remember { mutableStateOf("fal fa-users") }
+    var iconExpanded by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
-
-    // Tambahkan state loading untuk menonaktifkan tombol saat proses pengiriman
     var isLoading by remember { mutableStateOf(false) }
-
-    // State untuk menangani pesan kesalahan
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
     val coroutineScope = rememberCoroutineScope()
-
-    // State yang diupdate agar memastikan status yang selalu terkini
     val currentOnAddGroup = rememberUpdatedState(onAddGroup)
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-    ) {
+    val fontAwesomeIcons = listOf(
+        "fal fa-users" to "Uses",
+        "fal fa-folder" to "Folder",
+        "fal fa-star" to "Star",
+        "fal fa-home" to "Home",
+        "fal fa-tasks" to "Tasks"
+    )
+
+    Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
         Text(text = "Name: ${user.name}", style = MaterialTheme.typography.titleMedium)
 
-        // Menampilkan Groups
         if (user.groups.isNotEmpty()) {
             Text(text = "Groups:", style = MaterialTheme.typography.bodyLarge)
-
             Column {
                 user.groups.forEach { group ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "- ${group.name}",
+                            text = "- ${group.name} (${group.icon})",
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f) // Membuat teks mengisi ruang yang tersedia
+                            modifier = Modifier.weight(1f)
                         )
-
-                        Button(
-                            onClick = { onDeleteGroup(group.id) }, // Mengirim group.id yang sesuai
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) {
+                        Button(onClick = { onDeleteGroup(group.id) }) {
                             Text("Delete Group")
                         }
                     }
@@ -311,98 +243,108 @@ fun UserItem(user: User, onDelete: () -> Unit, onAddGroup: (String) -> Unit, onD
         Spacer(modifier = Modifier.height(4.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(
-                onClick = { showDialog = true },
-                modifier = Modifier.weight(1f)
-            ) {
+            Button(onClick = { showDialog = true }, modifier = Modifier.weight(1f)) {
                 Text("Add Group")
             }
-
             Spacer(modifier = Modifier.width(8.dp))
-
-            Button(
-                onClick = onDelete,
-                modifier = Modifier.weight(1f)
-            ) {
+            Button(onClick = onDelete, modifier = Modifier.weight(1f)) {
                 Text("Delete User")
             }
         }
 
-        // Menampilkan Snackbar jika ada pesan kesalahan
         if (errorMessage != null) {
             Snackbar(
                 modifier = Modifier.padding(16.dp),
-                action = {
-                    Button(onClick = { errorMessage = null }) {
-                        Text("Tutup")
-                    }
-                }
+                action = { Button(onClick = { errorMessage = null }) { Text("Tutup") } }
             ) {
                 Text(text = errorMessage ?: "")
             }
         }
 
-        // Dialog untuk menambahkan group
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
                 title = { Text("Add Group") },
                 text = {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Group Name") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions.Default.copy(
-                            imeAction = ImeAction.Done // Menutup keyboard saat "Done" ditekan
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                keyboardController?.hide() // Menutup keyboard saat "Done"
-                            }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Group Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { keyboardController?.hide() })
                         )
-                    )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Icon: ${fontAwesomeIcons.find { it.first == selectedIcon }?.second ?: "Users"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(onClick = { iconExpanded = true }) {
+                                Text("Pilih Ikon")
+                            }
+                            DropdownMenu(
+                                expanded = iconExpanded,
+                                onDismissRequest = { iconExpanded = false }
+                            ) {
+                                fontAwesomeIcons.forEach { (iconClass, iconName) ->
+                                    DropdownMenuItem(
+                                        text = { Text(iconName) },
+                                        onClick = {
+                                            selectedIcon = iconClass
+                                            iconExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 },
                 confirmButton = {
                     Button(onClick = {
-                        // Pastikan input nama tidak kosong
                         if (name.isNotEmpty() && !isLoading) {
-                            isLoading = true // Mengatur status loading saat operasi dimulai
-                            Log.d("AddGroup", "Group Name: $name")  // Menambahkan log untuk debugging
+                            isLoading = true
+                            Log.d("AddGroup", "Group Name: $name, Icon: $selectedIcon")
 
                             coroutineScope.launch {
                                 try {
                                     user.id?.let { userId ->
-                                        val groupRequest = GroupRequest(name)
-                                        Log.d("AddGroup", "Sending request with: $groupRequest") // Log request body
-
+                                        val groupRequest = GroupRequest(name = name, icon = selectedIcon)
+                                        Log.d("AddGroup", "Sending request with: $groupRequest")
                                         val response = RetrofitInstance.api.addGroupToUser(userId, groupRequest)
                                         if (response.isSuccessful) {
-                                            currentOnAddGroup.value(name) // Gunakan nilai yang selalu terbaru
-                                            showDialog = false  // Menutup dialog setelah berhasil
+                                            currentOnAddGroup.value(name)
+                                            showDialog = false
+                                            onFetchUsers() // Panggil fetchUsers dari parameter
                                         } else {
                                             val errorBody = response.errorBody()?.string()
                                             Log.e("Retrofit Error", "Error: $errorBody")
+                                            errorMessage = "Gagal menambah grup: $errorBody"
                                         }
                                     }
                                 } catch (e: HttpException) {
                                     val errorResponse = e.response()?.errorBody()?.string()
                                     Log.e("HttpException", "Error body: $errorResponse")
+                                    errorMessage = "HTTP Error: $errorResponse"
                                 } catch (e: Exception) {
                                     Log.e("Exception", "Unexpected error: ${e.message}")
+                                    errorMessage = "Error: ${e.message}"
                                 } finally {
-                                    isLoading = false // Mengubah status loading menjadi false setelah operasi selesai
+                                    isLoading = false
                                 }
                             }
-                            keyboardController?.hide() // 🔥 Tutup keyboard setelah submit
+                            keyboardController?.hide()
                         } else {
-                            // Jika nama grup kosong
-                            Log.d("AddGroup", "Group Name is empty!")  // Log jika name kosong
+                            Log.d("AddGroup", "Group Name is empty!")
                             errorMessage = "Nama grup tidak boleh kosong"
                         }
                     }) {
                         if (isLoading) {
-                            CircularProgressIndicator() // Menampilkan indikator loading saat mengirim request
+                            CircularProgressIndicator()
                         } else {
                             Text("Tambah Group")
                         }
