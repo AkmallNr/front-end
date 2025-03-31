@@ -8,5 +8,5 @@ data class Task (
     val reminder:String,
     val priority:String,
     val attachment: List<String>? = null,
-    val status: Boolean
+    val status: Boolean? =null
 )

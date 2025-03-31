@@ -110,7 +110,7 @@ fun ScheduleScreen(navController: NavHostController) {
                     }
                 }
             } else {
-                ProjectDetailScreen(selectedProject!!)
+                ProjectDetailScreen(navController, selectedProject!!)
             }
         }
     }
@@ -161,7 +161,7 @@ fun ProjectScheduleContent(projects: List<Project>, onProjectClick: (Project) ->
 }
 
 @Composable
-fun ProjectDetailScreen(project: Project) {
+fun ProjectDetailScreen(navController: NavHostController, project: Project) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(text = "Detail Proyek", style = MaterialTheme.typography.headlineMedium)
         Text(text = "Nama: ${project.name}")
@@ -170,7 +170,7 @@ fun ProjectDetailScreen(project: Project) {
         Text(text = "Selesai: ${project.endDate ?: "-"}")
 
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { /* TODO: Tambah tugas */ }) {
+        Button(onClick = { navController.navigate("add_task") }) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Tambah Tugas")
