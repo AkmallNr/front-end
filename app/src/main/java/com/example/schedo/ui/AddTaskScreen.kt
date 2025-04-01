@@ -1,12 +1,20 @@
 package com.example.schedo.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.widget.Toast
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,15 +22,44 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Task
+import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.network.TaskRequest
+import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
+// Utility functions
+fun getFileNameFromUri(context: Context, uri: Uri): String? {
+    return when (uri.scheme) {
+        "content" -> {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    it.getColumnIndex(OpenableColumns.DISPLAY_NAME).let { index ->
+                        if (index >= 0) it.getString(index) else null
+                    }
+                } else null
+            }
+        }
+        "file" -> File(uri.path).name
+        else -> null
+    }
+}
+
+fun isUrl(text: String): Boolean {
+    return android.util.Patterns.WEB_URL.matcher(text).matches()
+}
 
 @Composable
 fun TimePickerDialog(
@@ -41,15 +78,20 @@ fun TimePickerDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit) {
+fun AddTaskScreen(
+    navController: NavHostController,
+    onTaskAdded: (Task) -> Unit,
+    userId: Int,
+    groupId: Int,
+    projectId: Int
+) {
+    val context = LocalContext.current
     var taskTitle by remember { mutableStateOf(TextFieldValue()) }
     var note by remember { mutableStateOf("") }
-    var deadline by remember { mutableStateOf("2025/03/27 23:59") }
     var reminder by remember { mutableStateOf("Tidak") }
     var priority by remember { mutableStateOf("Normal") }
-    var attachmentList by remember { mutableStateOf<List<String>?>(null) }
+    var attachmentList by remember { mutableStateOf<List<Pair<String, String>>?>(null) } // Pair (nama file, URI)
     var showNoteDialog by remember { mutableStateOf(false) }
-    var showReminderDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
     var showDeadlineDatePicker by remember { mutableStateOf(false) }
     var showDeadlineTimePicker by remember { mutableStateOf(false) }
@@ -57,31 +99,29 @@ fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit)
     var showReminderTimePicker by remember { mutableStateOf(false) }
     var showPriorityDropdown by remember { mutableStateOf(false) }
 
-    // State untuk menyimpan tanggal dan jam
     var selectedDeadlineDate by remember { mutableStateOf(Calendar.getInstance().time) }
-    var selectedDeadlineTime by remember { mutableStateOf(Calendar.getInstance().time) }
     var selectedReminderDate by remember { mutableStateOf(Calendar.getInstance().time) }
-    var selectedReminderTime by remember { mutableStateOf(Calendar.getInstance().time) }
 
-    // State untuk DatePicker dan TimePicker
     val deadlineDatePickerState = rememberDatePickerState()
     val deadlineTimePickerState = rememberTimePickerState()
     val reminderDatePickerState = rememberDatePickerState()
     val reminderTimePickerState = rememberTimePickerState()
 
-    // List prioritas
     val priorityOptions = listOf("Rendah", "Normal", "Tinggi")
+
+    val launcher = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val fileName = getFileNameFromUri(context, it) ?: "UnnamedFile"
+            attachmentList = (attachmentList ?: emptyList()) + listOf(fileName to it.toString())
+        }
+    }
+
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        "Add Task",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                },
+                title = { Text("Add Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -94,200 +134,290 @@ fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit)
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            // Input Judul Tugas (name)
-            OutlinedTextField(
-                value = taskTitle,
-                onValueChange = { taskTitle = it },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = LocalTextStyle.current.copy(fontSize = 20.sp),
-                placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                ),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Opsi Batas Waktu (Tanggal + Jam)
-            EnhancedTaskOptionRow(
-                icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline") },
-                title = "Batas waktu",
-                value = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedDeadlineDate),
-                onClick = { showDeadlineDatePicker = true }
-            )
-
-            // Opsi Pengingat (Tanggal + Jam)
-            EnhancedTaskOptionRow(
-                icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder") },
-                title = "Pengingat",
-                value = if (reminder == "Tidak") "Tidak" else SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate),
-                chipStyle = reminder != "Tidak",
-                onClick = {
-                    if (reminder == "Tidak") {
-                        reminder = "Setel Pengingat"
-                        showReminderDatePicker = true
-                    } else {
-                        showReminderDatePicker = true
-                    }
-                }
-            )
-
-            // Opsi Prioritas dengan Dropdown - FIXED
-            PrioritySection(
-                priority = priority,
-                options = priorityOptions,
-                showDropdown = showPriorityDropdown,
-                onShowDropdownChange = { showPriorityDropdown = it },
-                onPrioritySelected = { priority = it }
-            )
-
-            // Opsi Catatan - IMPROVED
-            if (note.isEmpty()) {
-                // Show "TAMBAH" button if note is empty
-                EnhancedTaskOptionRow(
-                    icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
-                    title = "Catatan",
-                    value = "TAMBAH",
-                    buttonStyle = true,
-                    onClick = { showNoteDialog = true }
-                )
-            } else {
-                // Show limited note content with custom layout if note exists
-                NoteSection(note = note, onClick = { showNoteDialog = true })
-            }
-
-            // Opsi Lampiran
-            EnhancedTaskOptionRow(
-                icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment") },
-                title = "Lampiran",
-                value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList?.size} item",
-                buttonStyle = true,
-                onClick = { showAttachmentDialog = true }
-            )
-
-            // Tombol Simpan
-            Spacer(modifier = Modifier.height(40.dp))
-            Button(
-                onClick = {
-                    val newTask = Task(
-                        name = taskTitle.text,
-                        note = note,
-                        deadline = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedDeadlineDate),
-                        reminder = if (reminder == "Tidak") "Tidak" else SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate),
-                        priority = priority,
-                        attachment = attachmentList
-                    )
-                    onTaskAdded(newTask)
-                    navController.popBackStack()
-                },
+        Box {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Text("Simpan Tugas", fontSize = 18.sp)
+                OutlinedTextField(
+                    value = taskTitle,
+                    onValueChange = { taskTitle = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 20.sp),
+                    placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    ),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                EnhancedTaskOptionRow(
+                    icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline") },
+                    title = "Batas waktu",
+                    value = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedDeadlineDate),
+                    onClick = { showDeadlineDatePicker = true }
+                )
+
+                EnhancedTaskOptionRow(
+                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder") },
+                    title = "Pengingat",
+                    value = if (reminder == "Tidak") "Tidak" else SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate),
+                    chipStyle = reminder != "Tidak",
+                    onClick = {
+                        if (reminder == "Tidak") {
+                            reminder = "Setel Pengingat"
+                            showReminderDatePicker = true
+                        } else {
+                            showReminderDatePicker = true
+                        }
+                    }
+                )
+
+                PrioritySection(
+                    priority = priority,
+                    options = priorityOptions,
+                    showDropdown = showPriorityDropdown,
+                    onShowDropdownChange = { showPriorityDropdown = it },
+                    onPrioritySelected = { priority = it }
+                )
+
+                if (note.isEmpty()) {
+                    EnhancedTaskOptionRow(
+                        icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
+                        title = "Catatan",
+                        value = "TAMBAH",
+                        buttonStyle = true,
+                        onClick = { showNoteDialog = true }
+                    )
+                } else {
+                    NoteSection(note = note, onClick = { showNoteDialog = true })
+                }
+
+                EnhancedTaskOptionRow(
+                    icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment") },
+                    title = "Lampiran",
+                    value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList?.size} item",
+                    buttonStyle = attachmentList.isNullOrEmpty(),
+                    onClick = { showAttachmentDialog = true }
+                )
+
+                if (!attachmentList.isNullOrEmpty()) {
+                    AttachmentSection(attachmentList = attachmentList!!, onClick = { showAttachmentDialog = true })
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
+                Button(
+                    onClick = {
+                        if (taskTitle.text.isBlank()) {
+                            Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (note.isBlank()) {
+                            Toast.makeText(context, "Catatan tidak boleh kosong", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                        val taskRequest = TaskRequest(
+                            name = taskTitle.text.trim(),
+                            note = note.trim(),
+                            deadline = dateFormat.format(selectedDeadlineDate),
+                            reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
+                            priority = priority,
+                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() }, // List<String>?
+                            status = false
+                        )
+
+                        // Log data yang dikirim untuk debugging
+                        println("Sending TaskRequest: $taskRequest")
+
+                        scope.launch {
+                            try {
+                                val response = RetrofitInstance.api.addTaskToProject(userId, groupId, projectId, taskRequest)
+                                if (response.isSuccessful) {
+                                    Toast.makeText(context, "Tugas berhasil disimpan!", Toast.LENGTH_SHORT).show()
+                                    onTaskAdded(response.body()!!)
+                                    navController.popBackStack()
+                                } else {
+                                    val errorMessage = "Gagal menyimpan tugas: ${response.code()} - ${response.message()}"
+                                    android.util.Log.e("AddTaskScreen", errorMessage)
+                                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e: Exception) {
+                                val errorMessage = "Error: ${e.message}"
+                                android.util.Log.e("AddTaskScreen", errorMessage, e)
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Simpan Tugas", fontSize = 18.sp)
+                }
             }
-        }
 
-        // Dialogs and Pickers
-        if (showDeadlineDatePicker) {
-            DatePickerDialogContent(
-                deadlineDatePickerState,
-                onDismiss = { showDeadlineDatePicker = false },
-                onConfirm = {
-                    deadlineDatePickerState.selectedDateMillis?.let { millis ->
-                        selectedDeadlineDate = Calendar.getInstance().apply { timeInMillis = millis }.time
-                        showDeadlineDatePicker = false
-                        showDeadlineTimePicker = true
+            // DatePicker Dialog
+            if (showDeadlineDatePicker) {
+                DatePickerDialog(
+                    onDismissRequest = { showDeadlineDatePicker = false },
+                    confirmButton = {
+                        Button(onClick = {
+                            deadlineDatePickerState.selectedDateMillis?.let { millis ->
+                                val calendar = Calendar.getInstance()
+                                calendar.timeInMillis = millis
+                                selectedDeadlineDate = calendar.time
+                                showDeadlineDatePicker = false
+                                showDeadlineTimePicker = true
+                            }
+                        }) {
+                            Text("Pilih Jam")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { showDeadlineDatePicker = false }) {
+                            Text("Batal")
+                        }
                     }
+                ) {
+                    DatePicker(state = deadlineDatePickerState)
                 }
-            )
-        }
+            }
 
-        if (showDeadlineTimePicker) {
-            TimePickerDialogContent(
-                deadlineTimePickerState,
-                onDismiss = { showDeadlineTimePicker = false },
-                onConfirm = {
-                    val calendar = Calendar.getInstance()
-                    calendar.time = selectedDeadlineDate
-                    calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
-                    calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
-                    selectedDeadlineDate = calendar.time
-                    showDeadlineTimePicker = false
+            // TimePicker Dialog
+            if (showDeadlineTimePicker) {
+                TimePickerDialog(
+                    onDismissRequest = { showDeadlineTimePicker = false },
+                    confirmButton = {
+                        Button(onClick = {
+                            val calendar = Calendar.getInstance()
+                            calendar.time = selectedDeadlineDate
+                            calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
+                            calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
+                            selectedDeadlineDate = calendar.time
+                            showDeadlineTimePicker = false
+                        }) {
+                            Text("Simpan")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = { showDeadlineTimePicker = false }) {
+                            Text("Batal")
+                        }
+                    }
+                ) {
+                    TimePicker(state = deadlineTimePickerState)
                 }
-            )
-        }
+            }
 
-        if (showReminderDatePicker) {
-            DatePickerDialogContent(
-                reminderDatePickerState,
-                onDismiss = {
-                    showReminderDatePicker = false
-                    reminder = "Tidak"
-                },
-                onConfirm = {
-                    reminderDatePickerState.selectedDateMillis?.let { millis ->
-                        selectedReminderDate = Calendar.getInstance().apply { timeInMillis = millis }.time
+            // Reminder DatePicker Dialog
+            if (showReminderDatePicker) {
+                DatePickerDialog(
+                    onDismissRequest = {
                         showReminderDatePicker = false
-                        showReminderTimePicker = true
+                        reminder = "Tidak"
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            reminderDatePickerState.selectedDateMillis?.let { millis ->
+                                val calendar = Calendar.getInstance()
+                                calendar.timeInMillis = millis
+                                selectedReminderDate = calendar.time
+                                showReminderDatePicker = false
+                                showReminderTimePicker = true
+                            }
+                        }) {
+                            Text("Pilih Jam")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = {
+                            showReminderDatePicker = false
+                            reminder = "Tidak"
+                        }) {
+                            Text("Batal")
+                        }
                     }
+                ) {
+                    DatePicker(state = reminderDatePickerState)
                 }
-            )
-        }
+            }
 
-        if (showReminderTimePicker) {
-            TimePickerDialogContent(
-                reminderTimePickerState,
-                onDismiss = {
-                    showReminderTimePicker = false
-                    reminder = "Tidak"
-                },
-                onConfirm = {
-                    val calendar = Calendar.getInstance()
-                    calendar.time = selectedReminderDate
-                    calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
-                    calendar.set(Calendar.MINUTE, reminderTimePickerState.minute)
-                    selectedReminderDate = calendar.time
-                    reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
-                    showReminderTimePicker = false
+            // Reminder TimePicker Dialog
+            if (showReminderTimePicker) {
+                TimePickerDialog(
+                    onDismissRequest = {
+                        showReminderTimePicker = false
+                        reminder = "Tidak"
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            val calendar = Calendar.getInstance()
+                            calendar.time = selectedReminderDate
+                            calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
+                            calendar.set(Calendar.MINUTE, reminderTimePickerState.minute)
+                            selectedReminderDate = calendar.time
+                            reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
+                            showReminderTimePicker = false
+                        }) {
+                            Text("Simpan")
+                        }
+                    },
+                    dismissButton = {
+                        Button(onClick = {
+                            showReminderTimePicker = false
+                            reminder = "Tidak"
+                        }) {
+                            Text("Batal")
+                        }
+                    }
+                ) {
+                    TimePicker(state = reminderTimePickerState)
                 }
-            )
-        }
+            }
 
-        // Dialog untuk Catatan
-        if (showNoteDialog) {
-            NoteDialogContent(
-                note = note,
-                onDismiss = { showNoteDialog = false },
-                onConfirm = { newNote ->
-                    note = newNote
-                    showNoteDialog = false
-                }
-            )
-        }
+            // Note Dialog
+            if (showNoteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showNoteDialog = false },
+                    confirmButton = {
+                        TextButton(onClick = { showNoteDialog = false }) {
+                            Text("Simpan")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showNoteDialog = false }) {
+                            Text("Batal")
+                        }
+                    },
+                    text = {
+                        OutlinedTextField(
+                            value = note,
+                            onValueChange = { note = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 4
+                        )
+                    }
+                )
+            }
 
-        // Dialog untuk Lampiran
-        if (showAttachmentDialog) {
-            AttachmentDialogContent(
-                attachmentList = attachmentList,
-                onDismiss = { showAttachmentDialog = false },
-                onUpdate = { newList ->
-                    attachmentList = newList
-                }
-            )
+            // Attachment Dialog
+            if (showAttachmentDialog) {
+                AttachmentDialogContent(
+                    attachmentList = attachmentList,
+                    onDismiss = { showAttachmentDialog = false },
+                    onUpdate = { newList -> attachmentList = newList },
+                    filePickerLauncher = launcher,
+                    context = context
+                )
+            }
         }
     }
 }
@@ -301,17 +431,13 @@ fun PrioritySection(
     onPrioritySelected: (String) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Menggunakan Row untuk mendapatkan lebar elemen value dan trailingIcon
         Row(
             modifier = Modifier
                 .clickable { onShowDropdownChange(true) }
                 .padding(vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Ikon dan judul (tidak perlu diubah)
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -332,8 +458,6 @@ fun PrioritySection(
                     fontWeight = FontWeight.Medium
                 )
             }
-
-            // Bagian nilai dan trailing icon (diukur untuk alignment dropdown)
             Box(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -354,20 +478,17 @@ fun PrioritySection(
                     }
                     Icon(
                         imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = "Dropdown",
-                        modifier = Modifier
+                        contentDescription = "Dropdown"
                     )
                 }
             }
         }
-
-        // Dropdown Menu dengan alignment ke kanan
         DropdownMenu(
             expanded = showDropdown,
             onDismissRequest = { onShowDropdownChange(false) },
             modifier = Modifier
-                .align(Alignment.TopEnd) // Mengatur dropdown ke ujung kanan atas
-                .offset(x = (-8.dp), y = 8.dp) // Penyesuaian kecil untuk posisi
+                .align(Alignment.TopEnd)
+                .offset(x = (-8).dp, y = 8.dp)
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -393,12 +514,10 @@ fun NoteSection(note: String, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            // Left sesction with icon and title
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(horizontal = 8.dp)
             ) {
-                // Icon
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -412,10 +531,7 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                         Icon(Icons.Default.Note, contentDescription = "Note")
                     }
                 }
-
                 Spacer(modifier = Modifier.width(16.dp))
-
-                // Title
                 Text(
                     text = "Catatan",
                     fontSize = 18.sp,
@@ -423,8 +539,6 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                 )
             }
         }
-
-        // Note content displayed below the header - WITH CHARACTER LIMIT
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -441,7 +555,73 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
+        Divider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            thickness = 1.dp
+        )
+    }
+}
 
+@Composable
+fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Attachment")
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Lampiran",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 56.dp, end = 16.dp, bottom = 16.dp)
+        ) {
+            Column {
+                attachmentList.forEach { (attachmentName, _) ->
+                    Text(
+                        text = if (isUrl(attachmentName)) {
+                            if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName
+                        } else {
+                            if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName
+                        },
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(8.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
         Divider(
             color = MaterialTheme.colorScheme.outlineVariant,
             thickness = 1.dp
@@ -468,11 +648,7 @@ fun EnhancedTaskOptionRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left section with icon and title
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Icon
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -486,21 +662,14 @@ fun EnhancedTaskOptionRow(
                         icon()
                     }
                 }
-
                 Spacer(modifier = Modifier.width(16.dp))
-
-                // Title
                 Text(
                     text = title,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
-
-            // Right section with value
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 when {
                     chipStyle -> {
                         Surface(
@@ -540,13 +709,9 @@ fun EnhancedTaskOptionRow(
                         )
                     }
                 }
-
-                if (trailingIcon != null) {
-                    trailingIcon()
-                }
+                trailingIcon?.invoke()
             }
         }
-
         Divider(
             color = MaterialTheme.colorScheme.outlineVariant,
             thickness = 1.dp
@@ -554,129 +719,187 @@ fun EnhancedTaskOptionRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DatePickerDialogContent(
-    datePickerState: DatePickerState,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("Pilih Jam")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Batal")
-            }
-        }
-    ) {
-        DatePicker(state = datePickerState)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TimePickerDialogContent(
-    timePickerState: TimePickerState,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    TimePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("Simpan")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Batal")
-            }
-        }
-    ) {
-        TimePicker(state = timePickerState)
-    }
-}
-
-@Composable
-fun NoteDialogContent(
-    note: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var tempNote by remember { mutableStateOf(note) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Masukkan Catatan") },
-        text = {
-            OutlinedTextField(
-                value = tempNote,
-                onValueChange = { tempNote = it },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(tempNote) }) {
-                Text("Simpan")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Batal")
-            }
-        }
-    )
-}
-
 @Composable
 fun AttachmentDialogContent(
-    attachmentList: List<String>?,
+    attachmentList: List<Pair<String, String>>?,
     onDismiss: () -> Unit,
-    onUpdate: (List<String>?) -> Unit
+    onUpdate: (List<Pair<String, String>>?) -> Unit,
+    filePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
+    context: Context
 ) {
     var tempAttachment by remember { mutableStateOf("") }
     var currentList by remember { mutableStateOf(attachmentList ?: emptyList()) }
+    var isLink by remember { mutableStateOf(false) }
+    var isPhoto by remember { mutableStateOf(false) }
+    var isPdf by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah Lampiran") },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Selesai")
+            }
+        },
         text = {
             Column {
-                OutlinedTextField(
-                    value = tempAttachment,
-                    onValueChange = { tempAttachment = it },
-                    label = { Text("Masukkan nama file/link (PDF, Foto, atau Link)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = {
-                    if (tempAttachment.isNotEmpty()) {
-                        currentList = currentList + tempAttachment
-                        onUpdate(currentList)
-                        tempAttachment = ""
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = {
+                            isLink = true
+                            isPhoto = false
+                            isPdf = false
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Link,
+                            contentDescription = "Tambah URL",
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
-                }) {
-                    Text("Tambah")
+                    Button(
+                        onClick = {
+                            isLink = false
+                            isPhoto = true
+                            isPdf = false
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Image,
+                            contentDescription = "Tambah Foto",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            isLink = false
+                            isPhoto = false
+                            isPdf = true
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PictureAsPdf,
+                            contentDescription = "Tambah PDF",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                when {
+                    isLink -> {
+                        OutlinedTextField(
+                            value = tempAttachment,
+                            onValueChange = { tempAttachment = it },
+                            label = { Text("Masukkan URL (contoh: https://example.com)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                        )
+                    }
+                    isPhoto -> {
+                        Button(
+                            onClick = { filePickerLauncher.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Pilih Foto")
+                        }
+                    }
+                    isPdf -> {
+                        Button(
+                            onClick = { filePickerLauncher.launch("application/pdf") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Pilih PDF")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        if (tempAttachment.isNotEmpty()) {
+                            currentList = currentList + (tempAttachment to tempAttachment)
+                            onUpdate(currentList)
+                            tempAttachment = ""
+                            isLink = false
+                            isPhoto = false
+                            isPdf = false
+                        }
+                    },
+                    enabled = tempAttachment.isNotEmpty() || (isPhoto || isPdf),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Tambah",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 if (currentList.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text("Lampiran saat ini:")
-                    currentList.forEach { attachment ->
+                    currentList.forEach { (attachmentName, uriString) ->
                         Row(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    try {
+                                        val uri = Uri.parse(uriString)
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, getMimeType(attachmentName))
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Tidak ada aplikasi yang dapat membuka file ini", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when {
+                                        isUrl(attachmentName) -> Icons.Filled.Link
+                                        attachmentName.endsWith(".pdf") -> Icons.Filled.PictureAsPdf
+                                        attachmentName.endsWith(".png") || attachmentName.endsWith(".jpg") || attachmentName.endsWith(".jpeg") -> Icons.Filled.Image
+                                        else -> Icons.Filled.Image
+                                    },
+                                    contentDescription = attachmentName,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = attachment,
-                                modifier = Modifier.weight(1f)
+                                text = if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName,
+                                fontSize = 16.sp,
+                                modifier = Modifier.weight(1f),
+                                color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                             IconButton(onClick = {
-                                currentList = currentList - attachment
+                                currentList = currentList - (attachmentName to uriString)
                                 onUpdate(currentList)
                             }) {
                                 Icon(Icons.Filled.Close, contentDescription = "Hapus")
@@ -685,12 +908,16 @@ fun AttachmentDialogContent(
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Selesai")
-            }
         }
     )
+}
+
+private fun getMimeType(url: String): String? {
+    val extension = url.substringAfterLast(".", "").lowercase()
+    return when (extension) {
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "pdf" -> "application/pdf"
+        else -> "*/*"
+    }
 }

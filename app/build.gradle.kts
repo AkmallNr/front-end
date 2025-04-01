@@ -90,4 +90,7 @@ dependencies {
     implementation ("androidx.compose.material3:material3:1.2.0")
     implementation ("androidx.compose.foundation:foundation:1.5.0")
     implementation ("androidx.compose.runtime:runtime:1.5.0")
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
+    implementation ("com.google.code.gson:gson:2.10.1")
 }

@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController) {
+fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) {
     var selectedTab by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -34,7 +34,7 @@ fun ScheduleScreen(navController: NavHostController) {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByGroup(userId = 1, groupId = 1)
+                val response = apiService.getProjectsByGroup(userId = userId, groupId = groupId)
                 projects.clear()
                 projects.addAll(response)
             } catch (e: Exception) {
@@ -110,7 +110,7 @@ fun ScheduleScreen(navController: NavHostController) {
                     }
                 }
             } else {
-                ProjectDetailScreen(navController, selectedProject!!)
+                ProjectDetailScreen(navController, selectedProject!!, userId, groupId)
             }
         }
     }
@@ -161,7 +161,9 @@ fun ProjectScheduleContent(projects: List<Project>, onProjectClick: (Project) ->
 }
 
 @Composable
-fun ProjectDetailScreen(navController: NavHostController, project: Project) {
+fun ProjectDetailScreen(navController: NavHostController, project: Project, userId: Int, groupId: Int) {
+    val projectId = project.id ?: 0 // Ambil projectId dari objek project, gunakan 0 sebagai default jika null
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(text = "Detail Proyek", style = MaterialTheme.typography.headlineMedium)
         Text(text = "Nama: ${project.name}")
@@ -170,7 +172,9 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project) {
         Text(text = "Selesai: ${project.endDate ?: "-"}")
 
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { navController.navigate("add_task") }) {
+        Button(onClick = {
+            navController.navigate("add_task/$userId/$groupId/$projectId")
+        }) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Tambah Tugas")
