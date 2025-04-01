@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -140,42 +141,29 @@ fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit)
                 }
             )
 
-            // Opsi Prioritas dengan Dropdown
-            Box {
-                EnhancedTaskOptionRow(
-                    icon = { Icon(Icons.Default.Flag, contentDescription = "Priority") },
-                    title = "Prioritas",
-                    value = priority,
-                    chipStyle = true,
-                    trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Dropdown") },
-                    onClick = { showPriorityDropdown = true }
-                )
-
-                DropdownMenu(
-                    expanded = showPriorityDropdown,
-                    onDismissRequest = { showPriorityDropdown = false },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    priorityOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option, fontSize = 16.sp) },
-                            onClick = {
-                                priority = option
-                                showPriorityDropdown = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Opsi Catatan
-            EnhancedTaskOptionRow(
-                icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
-                title = "Catatan",
-                value = if (note.isEmpty()) "TAMBAH" else "UBAH",
-                buttonStyle = true,
-                onClick = { showNoteDialog = true }
+            // Opsi Prioritas dengan Dropdown - FIXED
+            PrioritySection(
+                priority = priority,
+                options = priorityOptions,
+                showDropdown = showPriorityDropdown,
+                onShowDropdownChange = { showPriorityDropdown = it },
+                onPrioritySelected = { priority = it }
             )
+
+            // Opsi Catatan - IMPROVED
+            if (note.isEmpty()) {
+                // Show "TAMBAH" button if note is empty
+                EnhancedTaskOptionRow(
+                    icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
+                    title = "Catatan",
+                    value = "TAMBAH",
+                    buttonStyle = true,
+                    onClick = { showNoteDialog = true }
+                )
+            } else {
+                // Show limited note content with custom layout if note exists
+                NoteSection(note = note, onClick = { showNoteDialog = true })
+            }
 
             // Opsi Lampiran
             EnhancedTaskOptionRow(
@@ -301,6 +289,163 @@ fun AddTaskScreen(navController: NavHostController, onTaskAdded: (Task) -> Unit)
                 }
             )
         }
+    }
+}
+
+@Composable
+fun PrioritySection(
+    priority: String,
+    options: List<String>,
+    showDropdown: Boolean,
+    onShowDropdownChange: (Boolean) -> Unit,
+    onPrioritySelected: (String) -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Menggunakan Row untuk mendapatkan lebar elemen value dan trailingIcon
+        Row(
+            modifier = Modifier
+                .clickable { onShowDropdownChange(true) }
+                .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Ikon dan judul (tidak perlu diubah)
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Default.Flag, contentDescription = "Priority")
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Prioritas",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // Bagian nilai dan trailing icon (diukur untuk alignment dropdown)
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Text(
+                            text = priority,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = "Dropdown",
+                        modifier = Modifier
+                    )
+                }
+            }
+        }
+
+        // Dropdown Menu dengan alignment ke kanan
+        DropdownMenu(
+            expanded = showDropdown,
+            onDismissRequest = { onShowDropdownChange(false) },
+            modifier = Modifier
+                .align(Alignment.TopEnd) // Mengatur dropdown ke ujung kanan atas
+                .offset(x = (-8.dp), y = 8.dp) // Penyesuaian kecil untuk posisi
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, fontSize = 16.sp) },
+                    onClick = {
+                        onPrioritySelected(option)
+                        onShowDropdownChange(false)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NoteSection(note: String, onClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            // Left sesction with icon and title
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                // Icon
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Default.Note, contentDescription = "Note")
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Title
+                Text(
+                    text = "Catatan",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // Note content displayed below the header - WITH CHARACTER LIMIT
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 56.dp, end = 16.dp, bottom = 16.dp)
+        ) {
+            Text(
+                text = if (note.length > 100) note.take(100) + "..." else note,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(12.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Divider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            thickness = 1.dp
+        )
     }
 }
 
