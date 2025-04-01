@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "944697141906",
+    "project_id": "schedo-app",
+    "storage_bucket": "schedo-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:944697141906:android:3499ce7f7ea0f75cbdd44b",
+        "android_client_info": {
+          "package_name": "com.example.schedo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3WQtlp2KmDemUN7le7t7v6kWXpk0fP2k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
