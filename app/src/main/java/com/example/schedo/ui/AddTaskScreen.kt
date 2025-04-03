@@ -87,6 +87,7 @@ fun AddTaskScreen(
     taskId: Int? = null,
     task: Task? = null
 ) {
+    android.util.Log.d("AddTaskScreen", "Received taskId: $taskId, isNull: ${taskId == null}")
     val context = LocalContext.current
     var taskTitle by remember { mutableStateOf(TextFieldValue(task?.name ?: "")) }
     var note by remember { mutableStateOf(task?.description ?: "") }
@@ -226,10 +227,6 @@ fun AddTaskScreen(
                     onClick = {
                         if (taskTitle.text.isBlank()) {
                             Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        if (note.isBlank()) {
-                            Toast.makeText(context, "Catatan tidak boleh kosong", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 

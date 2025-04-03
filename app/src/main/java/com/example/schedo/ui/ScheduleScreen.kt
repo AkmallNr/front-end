@@ -395,7 +395,8 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             }
                         },
                         onEditClick = {
-                            navController.navigate("add_task/$userId/$groupId/$projectId?taskId=${task.id}")
+                            println("Edit clicked for taskId: ${task.id}")
+                            navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
                         }
                     )
                 }
@@ -406,7 +407,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
         Button(
             onClick = {
-                navController.navigate("add_task/$userId/$groupId/$projectId")
+                navController.navigate("add_task/$userId/$groupId/$projectId/?taskId=-1")
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))

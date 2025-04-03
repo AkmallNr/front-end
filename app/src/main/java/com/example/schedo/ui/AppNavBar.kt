@@ -22,7 +22,7 @@ import com.example.schedo.ui.theme.UserManagementScreen
 fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomNav = currentRoute !in listOf("OnLoad", "add_task/{userId}/{groupId}/{projectId}")
+    val showBottomNav = currentRoute !in listOf("OnLoad", "add_task/{userId}/{groupId}/{projectId}/{taskId}")
 
     Scaffold(
         bottomBar = {
@@ -41,7 +41,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
                 AddTodoScreen(navController)
             }
             composable(
-                "add_task/{userId}/{groupId}/{projectId}",
+                "add_task/{userId}/{groupId}/{projectId}/{taskId}",
                 arguments = listOf(
                     navArgument("userId") { type = NavType.IntType },
                     navArgument("groupId") { type = NavType.IntType },
