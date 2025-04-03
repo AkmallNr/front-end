@@ -83,14 +83,16 @@ fun AddTaskScreen(
     onTaskAdded: (Task) -> Unit,
     userId: Int,
     groupId: Int,
-    projectId: Int
+    projectId: Int,
+    taskId: Int? = null,
+    task: Task? = null
 ) {
     val context = LocalContext.current
-    var taskTitle by remember { mutableStateOf(TextFieldValue()) }
-    var note by remember { mutableStateOf("") }
-    var reminder by remember { mutableStateOf("Tidak") }
-    var priority by remember { mutableStateOf("Normal") }
-    var attachmentList by remember { mutableStateOf<List<Pair<String, String>>?>(null) } // Pair (nama file, URI)
+    var taskTitle by remember { mutableStateOf(TextFieldValue(task?.name ?: "")) }
+    var note by remember { mutableStateOf(task?.description ?: "") }
+    var reminder by remember { mutableStateOf(task?.reminder ?: "Tidak") }
+    var priority by remember { mutableStateOf(task?.priority ?: "Normal") }
+    var attachmentList by remember { mutableStateOf<List<Pair<String, String>>?>(task?.attachment?.map { it to it } ?: emptyList()) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
     var showDeadlineDatePicker by remember { mutableStateOf(false) }
@@ -99,8 +101,16 @@ fun AddTaskScreen(
     var showReminderTimePicker by remember { mutableStateOf(false) }
     var showPriorityDropdown by remember { mutableStateOf(false) }
 
-    var selectedDeadlineDate by remember { mutableStateOf(Calendar.getInstance().time) }
-    var selectedReminderDate by remember { mutableStateOf(Calendar.getInstance().time) }
+    var selectedDeadlineDate by remember {
+        mutableStateOf(
+            SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(Calendar.getInstance().time))
+        )
+    }
+    var selectedReminderDate by remember {
+        mutableStateOf(
+            if (task?.reminder != null && task.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task.reminder) else Calendar.getInstance().time
+        )
+    }
 
     val deadlineDatePickerState = rememberDatePickerState()
     val deadlineTimePickerState = rememberTimePickerState()
@@ -121,7 +131,7 @@ fun AddTaskScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Add Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
+                title = { Text(if (taskId == null) "Add Task" else "Edit Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -202,7 +212,7 @@ fun AddTaskScreen(
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment") },
                     title = "Lampiran",
-                    value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList?.size} item",
+                    value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList!!.size} item",
                     buttonStyle = attachmentList.isNullOrEmpty(),
                     onClick = { showAttachmentDialog = true }
                 )
@@ -225,27 +235,29 @@ fun AddTaskScreen(
 
                         val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                         val taskRequest = TaskRequest(
+                            id = task?.id,
                             name = taskTitle.text.trim(),
-                            note = note.trim(),
+                            description = note.trim(),
                             deadline = dateFormat.format(selectedDeadlineDate),
                             reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
                             priority = priority,
-                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() }, // List<String>?
-                            status = false
+                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
+                            status = task?.status ?: false
                         )
-
-                        // Log data yang dikirim untuk debugging
-                        println("Sending TaskRequest: $taskRequest")
 
                         scope.launch {
                             try {
-                                val response = RetrofitInstance.api.addTaskToProject(userId, groupId, projectId, taskRequest)
+                                val response = if (taskId == null) {
+                                    RetrofitInstance.api.addTaskToProject(userId, groupId, projectId, taskRequest)
+                                } else {
+                                    RetrofitInstance.api.updateTask(userId, groupId, projectId, taskId, taskRequest)
+                                }
                                 if (response.isSuccessful) {
-                                    Toast.makeText(context, "Tugas berhasil disimpan!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, if (taskId == null) "Tugas berhasil disimpan!" else "Tugas berhasil diperbarui!", Toast.LENGTH_SHORT).show()
                                     onTaskAdded(response.body()!!)
                                     navController.popBackStack()
                                 } else {
-                                    val errorMessage = "Gagal menyimpan tugas: ${response.code()} - ${response.message()}"
+                                    val errorMessage = "Gagal ${if (taskId == null) "menyimpan" else "memperbarui"} tugas: ${response.code()} - ${response.message()}"
                                     android.util.Log.e("AddTaskScreen", errorMessage)
                                     Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                                 }
@@ -260,7 +272,7 @@ fun AddTaskScreen(
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Simpan Tugas", fontSize = 18.sp)
+                    Text(if (taskId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
                 }
             }
 
