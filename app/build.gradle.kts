@@ -37,6 +37,14 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/DEPENDENCIES", // Konflik sebelumnya
+                "META-INF/INDEX.LIST"    // Konflik baru
+            )
+        }
+    }
 }
 
 dependencies {
@@ -93,4 +101,11 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
     implementation ("com.google.code.gson:gson:2.10.1")
+
+    implementation ("com.google.android.gms:play-services-auth:20.7.0")
+    implementation ("com.google.apis:google-api-services-drive:v3-rev20230822-2.0.0")
+    implementation ("com.google.http-client:google-http-client-android:1.43.3")
+    implementation ("com.google.api-client:google-api-client-android:2.2.0")
+
+    implementation ("com.google.auth:google-auth-library-oauth2-http:1.23.0")
 }

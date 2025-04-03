@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,7 +24,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
@@ -34,10 +34,129 @@ import androidx.navigation.NavHostController
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
 import kotlinx.coroutines.launch
-import java.io.File
+import com.example.schedo.R
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import java.text.SimpleDateFormat
 import java.util.*
+import com.google.api.services.drive.DriveScopes
+import com.google.api.services.drive.model.File
+import com.google.api.services.drive.model.Permission
+import com.google.auth.oauth2.ServiceAccountCredentials
+import com.google.auth.http.HttpCredentialsAdapter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File as JavaFile
+
+
+suspend fun uploadFileToDrive(
+    context: Context,
+    fileUri: Uri,
+    fileName: String,
+    imageFolderId: String,
+    pdfFolderId: String
+): String? {
+    android.util.Log.d("UploadFileToDrive", "Memulai uploadFileToDrive untuk file: $fileName")
+    return withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("UploadFileToDrive", "Membaca file kredensial JSON")
+            val inputStream = context.resources.openRawResource(R.raw.schedo_455511_3d282be6c42c)
+            android.util.Log.d("UploadFileToDrive", "Membuat kredensial Service Account")
+            val credentials = ServiceAccountCredentials.fromStream(inputStream)
+                .createScoped(listOf(DriveScopes.DRIVE_FILE))
+
+            android.util.Log.d("UploadFileToDrive", "Membuat instance Drive")
+            val driveService = Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                HttpCredentialsAdapter(credentials)
+            ).setApplicationName("Schedo").build()
+
+            // Menentukan folder tujuan berdasarkan jenis file
+            val folderId = when {
+                fileName.lowercase().endsWith(".pdf") -> pdfFolderId
+                fileName.lowercase().endsWith(".jpg") ||
+                        fileName.lowercase().endsWith(".jpeg") ||
+                        fileName.lowercase().endsWith(".png") -> imageFolderId
+                else -> imageFolderId
+            }
+            android.util.Log.d("UploadFileToDrive", "Mengunggah $fileName ke folder ID: $folderId")
+
+            // Membuat metadata file tanpa permissions
+            val fileMetadata = File()
+                .setName(fileName)
+                .setParents(listOf(folderId))
+
+            // Mendapatkan file dari URI
+            val contentResolver = context.contentResolver
+            val inputStreamFile = contentResolver.openInputStream(fileUri)
+            if (inputStreamFile == null) {
+                android.util.Log.e("UploadFileToDrive", "Gagal membuka input stream untuk URI: $fileUri")
+                return@withContext null
+            }
+
+            val tempFile = JavaFile(context.cacheDir, fileName)
+            inputStreamFile.use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            android.util.Log.d("UploadFileToDrive", "File sementara dibuat: ${tempFile.absolutePath}")
+
+            val mediaContent = com.google.api.client.http.FileContent(getMimeType(fileName), tempFile)
+
+            // Mengunggah file ke Google Drive
+            val uploadedFile = driveService.files().create(fileMetadata, mediaContent)
+                .setFields("id, webViewLink")
+                .execute()
+            android.util.Log.d("UploadFileToDrive", "File berhasil diunggah: ${uploadedFile.webViewLink}")
+
+            // Mengatur izin file agar dapat diakses oleh "anyone" dengan peran "reader"
+            val permission = Permission()
+                .setType("anyone")
+                .setRole("reader")
+            driveService.permissions().create(uploadedFile.id, permission).execute()
+            android.util.Log.d("UploadFileToDrive", "Izin file berhasil diatur: anyone dengan peran reader")
+
+            // Mengembalikan URL publik
+            uploadedFile.webViewLink.also {
+                tempFile.delete()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("UploadFileToDrive", "Gagal mengunggah file: ${e.message}", e)
+            null
+        }
+    }
+}
+
+// Fungsi untuk mencari atau membuat folder
+private fun getOrCreateFolder(driveService: Drive, folderName: String): String {
+    // Cari folder berdasarkan nama
+    val query = "mimeType='application/vnd.google-apps.folder' and name='$folderName' and trashed=false"
+    val folderList = driveService.files().list()
+        .setQ(query)
+        .setSpaces("drive")
+        .setFields("files(id, name)")
+        .execute()
+
+    // Jika folder sudah ada, kembalikan ID-nya
+    if (!folderList.files.isNullOrEmpty()) {
+        return folderList.files[0].id
+    }
+
+    // Jika tidak ada, buat folder baru
+    val folderMetadata = File()
+        .setName(folderName)
+        .setMimeType("application/vnd.google-apps.folder")
+
+    val createdFolder = driveService.files().create(folderMetadata)
+        .setFields("id")
+        .execute()
+
+    return createdFolder.id
+}
 
 // Utility functions
 fun getFileNameFromUri(context: Context, uri: Uri): String? {
@@ -52,13 +171,13 @@ fun getFileNameFromUri(context: Context, uri: Uri): String? {
                 } else null
             }
         }
-        "file" -> File(uri.path).name
+        "file" -> JavaFile(uri.path).name
         else -> null
     }
 }
 
 fun isUrl(text: String): Boolean {
-    return android.util.Patterns.WEB_URL.matcher(text).matches()
+    return text.startsWith("http://") || text.startsWith("https://")
 }
 
 @Composable
@@ -90,7 +209,7 @@ fun AddTaskScreen(
     var note by remember { mutableStateOf("") }
     var reminder by remember { mutableStateOf("Tidak") }
     var priority by remember { mutableStateOf("Normal") }
-    var attachmentList by remember { mutableStateOf<List<Pair<String, String>>?>(null) } // Pair (nama file, URI)
+    var attachmentList by remember { mutableStateOf<List<Pair<String, Uri>>?>(null) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
     var showDeadlineDatePicker by remember { mutableStateOf(false) }
@@ -109,14 +228,20 @@ fun AddTaskScreen(
 
     val priorityOptions = listOf("Rendah", "Normal", "Tinggi")
 
-    val launcher = rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
+            android.util.Log.d("AttachmentDialog", "File dipilih: $uri")
             val fileName = getFileNameFromUri(context, it) ?: "UnnamedFile"
-            attachmentList = (attachmentList ?: emptyList()) + listOf(fileName to it.toString())
-        }
+            attachmentList = (attachmentList ?: emptyList()) + listOf(fileName to it)
+            android.util.Log.d("AttachmentDialog", "Lampiran ditambahkan: $fileName")
+        } ?: android.util.Log.d("AttachmentDialog", "URI null, tidak ada file yang dipilih")
     }
 
     val scope = rememberCoroutineScope()
+
+    // ID folder untuk "image" dan "pdf" di Google Drive
+    val imageFolderId = "1CVmSom-5q4DW5_WtHChVLq7JthcwQR7h" // Ganti dengan ID folder "image"
+    val pdfFolderId = "1hUwlfEyg04tq8-Zlusmb2MFJOFqD1upo"     // Ganti dengan ID folder "pdf"
 
     Scaffold(
         topBar = {
@@ -208,7 +333,8 @@ fun AddTaskScreen(
                 )
 
                 if (!attachmentList.isNullOrEmpty()) {
-                    AttachmentSection(attachmentList = attachmentList!!, onClick = { showAttachmentDialog = true })
+                    val displayAttachments = attachmentList!!.map { it.first to it.second.toString() }
+                    AttachmentSection(attachmentList = displayAttachments, onClick = { showAttachmentDialog = true })
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
@@ -223,36 +349,59 @@ fun AddTaskScreen(
                             return@Button
                         }
 
-                        val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
-                        val taskRequest = TaskRequest(
-                            name = taskTitle.text.trim(),
-                            note = note.trim(),
-                            deadline = dateFormat.format(selectedDeadlineDate),
-                            reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
-                            priority = priority,
-                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() }, // List<String>?
-                            status = false
-                        )
-
-                        // Log data yang dikirim untuk debugging
-                        println("Sending TaskRequest: $taskRequest")
-
+                        android.util.Log.d("AddTaskScreen", "Memulai coroutine untuk mengunggah file")
                         scope.launch {
+                            android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
+                            // Mengunggah file ke Google Drive menggunakan Service Account
+                            val uploadedAttachments = mutableListOf<String>()
+                            android.util.Log.d("AddTaskScreen", "Jumlah lampiran: ${attachmentList?.size ?: 0}")
+                            attachmentList?.forEach { (fileName, uri) ->
+                                android.util.Log.d("AddTaskScreen", "Mengunggah file: $fileName dengan URI: $uri")
+                                if (!isUrl(fileName)) {
+                                    android.util.Log.d("AddTaskScreen", "File bukan URL, mengunggah ke Google Drive")
+                                    val driveUrl = uploadFileToDrive(context, uri, fileName, imageFolderId, pdfFolderId)
+                                    if (driveUrl != null) {
+                                        uploadedAttachments.add(driveUrl)
+                                        android.util.Log.d("AddTaskScreen", "Berhasil mengunggah $fileName: $driveUrl")
+                                    } else {
+                                        android.util.Log.e("AddTaskScreen", "Gagal mengunggah $fileName")
+                                        Toast.makeText(
+                                            context,
+                                            "Gagal mengunggah $fileName. Periksa Logcat untuk detail.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                } else {
+                                    uploadedAttachments.add(fileName)
+                                    android.util.Log.d("AddTaskScreen", "Lampiran adalah URL: $fileName")
+                                }
+                            }
+
+                            android.util.Log.d("AddTaskScreen", "Semua lampiran selesai diunggah: $uploadedAttachments")
+                            val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                            val taskRequest = TaskRequest(
+                                name = taskTitle.text.trim(),
+                                note = note.trim(),
+                                deadline = dateFormat.format(selectedDeadlineDate),
+                                reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
+                                priority = priority,
+                                attachment = uploadedAttachments,
+                                status = false
+                            )
+
                             try {
+                                android.util.Log.d("AddTaskScreen", "Mengirimkan tugas ke server")
                                 val response = RetrofitInstance.api.addTaskToProject(userId, groupId, projectId, taskRequest)
                                 if (response.isSuccessful) {
                                     Toast.makeText(context, "Tugas berhasil disimpan!", Toast.LENGTH_SHORT).show()
                                     onTaskAdded(response.body()!!)
                                     navController.popBackStack()
                                 } else {
-                                    val errorMessage = "Gagal menyimpan tugas: ${response.code()} - ${response.message()}"
-                                    android.util.Log.e("AddTaskScreen", errorMessage)
-                                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Gagal menyimpan tugas: ${response.message()}", Toast.LENGTH_LONG).show()
                                 }
                             } catch (e: Exception) {
-                                val errorMessage = "Error: ${e.message}"
-                                android.util.Log.e("AddTaskScreen", errorMessage, e)
-                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                android.util.Log.e("AddTaskScreen", "Gagal menyimpan tugas: ${e.message}", e)
                             }
                         }
                     },
@@ -264,7 +413,7 @@ fun AddTaskScreen(
                 }
             }
 
-            // DatePicker Dialog
+            // Dialogs lainnya (DatePicker, TimePicker, NoteDialog, AttachmentDialog) tetap sama
             if (showDeadlineDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = { showDeadlineDatePicker = false },
@@ -291,7 +440,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // TimePicker Dialog
             if (showDeadlineTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = { showDeadlineTimePicker = false },
@@ -317,7 +465,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // Reminder DatePicker Dialog
             if (showReminderDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = {
@@ -350,7 +497,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // Reminder TimePicker Dialog
             if (showReminderTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = {
@@ -383,7 +529,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // Note Dialog
             if (showNoteDialog) {
                 AlertDialog(
                     onDismissRequest = { showNoteDialog = false },
@@ -408,13 +553,12 @@ fun AddTaskScreen(
                 )
             }
 
-            // Attachment Dialog
             if (showAttachmentDialog) {
                 AttachmentDialogContent(
                     attachmentList = attachmentList,
                     onDismiss = { showAttachmentDialog = false },
                     onUpdate = { newList -> attachmentList = newList },
-                    filePickerLauncher = launcher,
+                    filePickerLauncher = filePickerLauncher,
                     context = context
                 )
             }
@@ -721,9 +865,9 @@ fun EnhancedTaskOptionRow(
 
 @Composable
 fun AttachmentDialogContent(
-    attachmentList: List<Pair<String, String>>?,
+    attachmentList: List<Pair<String, Uri>>?,
     onDismiss: () -> Unit,
-    onUpdate: (List<Pair<String, String>>?) -> Unit,
+    onUpdate: (List<Pair<String, Uri>>?) -> Unit,
     filePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
     context: Context
 ) {
@@ -737,7 +881,10 @@ fun AttachmentDialogContent(
         onDismissRequest = onDismiss,
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = {
+                onUpdate(currentList)
+                onDismiss()
+            }) {
                 Text("Selesai")
             }
         },
@@ -770,6 +917,7 @@ fun AttachmentDialogContent(
                             isLink = false
                             isPhoto = true
                             isPdf = false
+                            filePickerLauncher.launch("image/*")
                         },
                         modifier = Modifier
                             .weight(1f)
@@ -786,6 +934,7 @@ fun AttachmentDialogContent(
                             isLink = false
                             isPhoto = false
                             isPdf = true
+                            filePickerLauncher.launch("application/pdf")
                         },
                         modifier = Modifier
                             .weight(1f)
@@ -799,46 +948,25 @@ fun AttachmentDialogContent(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                when {
-                    isLink -> {
-                        OutlinedTextField(
-                            value = tempAttachment,
-                            onValueChange = { tempAttachment = it },
-                            label = { Text("Masukkan URL (contoh: https://example.com)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
-                        )
-                    }
-                    isPhoto -> {
-                        Button(
-                            onClick = { filePickerLauncher.launch("image/*") },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Pilih Foto")
-                        }
-                    }
-                    isPdf -> {
-                        Button(
-                            onClick = { filePickerLauncher.launch("application/pdf") },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Pilih PDF")
-                        }
-                    }
+                if (isLink) {
+                    OutlinedTextField(
+                        value = tempAttachment,
+                        onValueChange = { tempAttachment = it },
+                        label = { Text("Masukkan URL (contoh: https://example.com)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = {
-                        if (tempAttachment.isNotEmpty()) {
-                            currentList = currentList + (tempAttachment to tempAttachment)
-                            onUpdate(currentList)
+                        if (tempAttachment.isNotEmpty() && isLink) {
+                            currentList = currentList + (tempAttachment to Uri.parse(tempAttachment))
                             tempAttachment = ""
                             isLink = false
-                            isPhoto = false
-                            isPdf = false
                         }
                     },
-                    enabled = tempAttachment.isNotEmpty() || (isPhoto || isPdf),
+                    enabled = tempAttachment.isNotEmpty() && isLink,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
@@ -850,21 +978,19 @@ fun AttachmentDialogContent(
                 if (currentList.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Lampiran saat ini:")
-                    currentList.forEach { (attachmentName, uriString) ->
+                    currentList.forEach { (attachmentName, uri) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     try {
-                                        val uri = Uri.parse(uriString)
                                         val intent = Intent(Intent.ACTION_VIEW).apply {
                                             setDataAndType(uri, getMimeType(attachmentName))
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(intent)
                                     } catch (e: Exception) {
-                                        e.printStackTrace()
                                         Toast.makeText(context, "Tidak ada aplikasi yang dapat membuka file ini", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -883,7 +1009,6 @@ fun AttachmentDialogContent(
                                     imageVector = when {
                                         isUrl(attachmentName) -> Icons.Filled.Link
                                         attachmentName.endsWith(".pdf") -> Icons.Filled.PictureAsPdf
-                                        attachmentName.endsWith(".png") || attachmentName.endsWith(".jpg") || attachmentName.endsWith(".jpeg") -> Icons.Filled.Image
                                         else -> Icons.Filled.Image
                                     },
                                     contentDescription = attachmentName,
@@ -899,8 +1024,7 @@ fun AttachmentDialogContent(
                                 color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                             IconButton(onClick = {
-                                currentList = currentList - (attachmentName to uriString)
-                                onUpdate(currentList)
+                                currentList = currentList - (attachmentName to uri)
                             }) {
                                 Icon(Icons.Filled.Close, contentDescription = "Hapus")
                             }
@@ -912,7 +1036,7 @@ fun AttachmentDialogContent(
     )
 }
 
-private fun getMimeType(url: String): String? {
+fun getMimeType(url: String): String? {
     val extension = url.substringAfterLast(".", "").lowercase()
     return when (extension) {
         "jpg", "jpeg" -> "image/jpeg"
