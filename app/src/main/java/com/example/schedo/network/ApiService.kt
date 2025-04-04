@@ -50,6 +50,22 @@ interface ApiService {
         @Path("projectId") projectId : Int,
         @Body tasksRequest: TaskRequest
     ): Response<Task>
+
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks")
+    suspend fun getTask(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int
+    ): List<Task>
+
+    @PUT("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
+    suspend fun updateTask(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Path("taskId") taskId: Int,
+        @Body taskRequest: TaskRequest
+    ): Response<Task>
 }
 
 // ✅ Model request untuk menambahkan grup ke user
@@ -68,7 +84,7 @@ data class ProjectRequest(
 data class TaskRequest(
     val id: Int? = null,
     val name: String,
-    val note:String? = null,
+    val description: String?= null,
     val deadline:String? = null,
     val reminder:String? = null,
     val priority:String,
