@@ -263,6 +263,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     val coroutineScope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<Task>() }
     var isLoading by remember { mutableStateOf(false) }
+    val backgroundColor = Color(0xFFFFFBEB)  // Your app's background color
 
     LaunchedEffect(key1 = projectId) {
         isLoading = true
@@ -278,139 +279,154 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         }
     }
 
-    Column(
+    // Use Box as root container to have complete control over layout
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(backgroundColor)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        // Main content column
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                // Add padding to ensure content doesn't get hidden under the button
+                .padding(bottom = 72.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = project.name ?: "Tanpa Nama",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Mulai",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = project.startDate ?: "-",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = "Selesai",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = project.endDate ?: "-",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = project.name ?: "Tanpa Nama",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Mulai",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = project.startDate ?: "-",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Selesai",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = project.endDate ?: "-",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Daftar Tugas",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
+            Text(
+                text = "Daftar Tugas",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (tasks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Tidak ada tugas",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(tasks) { task ->
-                    TaskCard(
-                        task = task,
-                        onStatusChange = { updatedTask ->
-                            coroutineScope.launch {
-                                try {
-                                    val response = RetrofitInstance.api.updateTask(
-                                        userId, groupId, projectId, task.id!!, TaskRequest(
-                                            id = task.id,
-                                            name = task.name ?: "",
-                                            description = task.description,
-                                            deadline = task.deadline,
-                                            reminder = task.reminder,
-                                            priority = task.priority ?: "Normal",
-                                            attachment = task.attachment,
-                                            status = updatedTask.status
-                                        )
-                                    )
-                                    if (response.isSuccessful) {
-                                        tasks[tasks.indexOf(task)] = response.body()!!
-                                        Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        onEditClick = {
-                            println("Edit clicked for taskId: ${task.id}")
-                            navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
-                        }
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (tasks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tidak ada tugas",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
                     )
                 }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(tasks) { task ->
+                        TaskCard(
+                            task = task,
+                            onStatusChange = { updatedTask ->
+                                coroutineScope.launch {
+                                    try {
+                                        val response = RetrofitInstance.api.updateTask(
+                                            userId, groupId, projectId, task.id!!, TaskRequest(
+                                                id = task.id,
+                                                name = task.name ?: "",
+                                                description = task.description,
+                                                deadline = task.deadline,
+                                                reminder = task.reminder,
+                                                priority = task.priority ?: "Normal",
+                                                attachment = task.attachment,
+                                                status = updatedTask.status
+                                            )
+                                        )
+                                        if (response.isSuccessful) {
+                                            tasks[tasks.indexOf(task)] = response.body()!!
+                                            Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onEditClick = {
+                                println("Edit clicked for taskId: ${task.id}")
+                                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
+                            }
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
+        // Button positioned at the bottom with no background container
         Button(
             onClick = {
-                navController.navigate("add_task/$userId/$groupId/$projectId/?taskId=-1")
+                navController.navigate("add_task/$userId/$groupId/$projectId/-1")
             },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278)),
+            // Remove any default elevation that might create shadow/background
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp
+            )
         ) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
