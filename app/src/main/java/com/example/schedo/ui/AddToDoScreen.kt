@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -31,10 +32,9 @@ import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.*
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTodoScreen(navController: NavController) {
+fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
     var taskGroup by remember { mutableStateOf("Choose Group") }
     var projectName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -43,6 +43,7 @@ fun AddTodoScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     fun fetchUsers() {
         coroutineScope.launch {
@@ -87,24 +88,16 @@ fun AddTodoScreen(navController: NavController) {
             println("Task Group yang dicari: '$taskGroup'")
             user.groups.forEach { println("Grup tersedia: '${it.name}'") }
 
-            val groupId = user.groups.find { it.name == taskGroup }?.id ?: 0
-            val userId = user.id ?: 0
-            println("user id : ${userId}")
+            val groupIdFromUser = user.groups.find { it.name == taskGroup }?.id ?: groupId
+            val userIdFromParam = userId
+            println("user id : ${userIdFromParam}")
             println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
-            println("grup id : ${groupId}")
+            println("grup id : ${groupIdFromUser}")
             try {
-                val response = RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                val response = RetrofitInstance.api.addProjectToGroup(userIdFromParam, groupIdFromUser, projectData)
                 if (response.isSuccessful) {
                     println("Project saved successfully!")
-                    navController.navigate("add_task") {
-                        popUpTo("todo") { inclusive = false }
-                    }
-                    taskGroup = "Choose Group"
-                    projectName = ""
-                    description = ""
-                    startDate = "Start Date"
-                    endDate = "End Date"
-                    fetchUsers()
+                    showSuccessDialog = true
                 } else {
                     println("Failed to save project: ${response.errorBody()?.string()}")
                 }
@@ -113,6 +106,40 @@ fun AddTodoScreen(navController: NavController) {
                 println("Error saving project: ${e.message}")
             }
         }
+    }
+
+    // Dialog Sukses
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            title = { Text("Sukses") },
+            text = { Text("Project berhasil disimpan!") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSuccessDialog = false
+                        navController.navigate(BottomNavItem.JADWAL.route) { // Changed to route to Schedule screen
+                            popUpTo("add_todo") { inclusive = true }
+                        }
+                        taskGroup = "Choose Group"
+                        projectName = ""
+                        description = ""
+                        startDate = "Choose Start Date"
+                        endDate = "Choose End Date"
+                        fetchUsers()
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSuccessDialog = false }
+                ) {
+                    Text("Batal")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -220,7 +247,6 @@ fun AddTodoScreen(navController: NavController) {
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardField(
@@ -247,15 +273,12 @@ fun CardField(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val currentOnAddGroup = rememberUpdatedState(onAddTaskGroup)
 
-    // Expanded list of FontAwesome icons mapped to Material icons
     val fontAwesomeIcons = listOf(
-        // Original icons
         Pair("fas fa-users", Icons.Default.Group),
         Pair("fas fa-folder", Icons.Default.Folder),
         Pair("fas fa-star", Icons.Default.Star),
         Pair("fas fa-home", Icons.Default.Home),
         Pair("fas fa-tasks", Icons.Default.List),
-        // Additional icons
         Pair("fas fa-calendar", Icons.Default.CalendarMonth),
         Pair("fas fa-book", Icons.Default.Book),
         Pair("fas fa-bell", Icons.Default.Notifications),
@@ -366,7 +389,6 @@ fun CardField(
                                 .width(280.dp)
                         ) {
                             Column(modifier = Modifier.padding(8.dp)) {
-                                // Custom grid layout since LazyVerticalGrid needs a Composable scope
                                 val rows = 5
                                 val columns = 5
                                 val itemsPerRow = fontAwesomeIcons.size / rows + (if (fontAwesomeIcons.size % rows > 0) 1 else 0)
@@ -401,7 +423,6 @@ fun CardField(
                                                     )
                                                 }
                                             } else {
-                                                // Empty space for alignment
                                                 Spacer(modifier = Modifier.size(40.dp))
                                             }
                                         }
@@ -565,4 +586,128 @@ fun CardField(
 fun formatDate(millis: Long): String {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     return sdf.format(Date(millis))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScheduleScreen(navController: NavController, userId: Int, groupId: Int) {
+    var projects by remember { mutableStateOf<List<Project>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            try {
+                // Assuming there's an API call to get projects
+                val response = RetrofitInstance.api.getProjectsByGroup(userId, groupId)
+                projects = response
+            } catch (e: Exception) {
+                e.printStackTrace()
+                println("Error fetching projects: ${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Schedule", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Your Scheduled Projects",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (projects.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No projects scheduled yet")
+                    }
+                } else {
+                    LazyColumn {
+                        items(projects.size) { index ->
+                            val project = projects[index]
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                elevation = CardDefaults.cardElevation(2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = project.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Start: ${project.startDate}",
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "End: ${project.endDate}",
+                                        fontSize = 14.sp
+                                    )
+                                    project.description?.let {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = it,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = { navController.navigate("add_todo?userId=$userId&groupId=$groupId") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+                ) {
+                    Text("Add New Project", color = Color.White)
+                }
+            }
+        }
+    }
 }

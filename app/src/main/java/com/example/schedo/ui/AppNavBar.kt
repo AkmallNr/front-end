@@ -6,17 +6,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
-import androidx.compose.ui.Modifier
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.UserManagementScreen
-
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
@@ -37,8 +37,17 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
             composable(BottomNavItem.TODO.route) {
                 HomeScreen(navController)
             }
-            composable("add_todo") {
-                AddTodoScreen(navController)
+            composable(
+                "add_todo",
+                arguments = listOf(
+                    navArgument("userId") { type = NavType.IntType; defaultValue = userId },
+                    navArgument("groupId") { type = NavType.IntType; defaultValue = groupId }
+                )
+            ) { backStackEntry ->
+                val args = backStackEntry.arguments
+                val receivedUserId = args?.getInt("userId") ?: userId
+                val receivedGroupId = args?.getInt("groupId") ?: groupId
+                AddTodoScreen(navController, receivedUserId, receivedGroupId)
             }
             composable(
                 "add_task/{userId}/{groupId}/{projectId}/{taskId}",
@@ -50,6 +59,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
+
                 val receivedUserId = args?.getInt("userId") ?: userId
                 val receivedGroupId = args?.getInt("groupId") ?: groupId
                 val receivedProjectId = args?.getInt("projectId") ?: 0
@@ -60,7 +70,6 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
 
                 val coroutineScope = rememberCoroutineScope()
 
-                // Muat tugas jika dalam mode edit
                 LaunchedEffect(key1 = taskId) {
                     isLoading = true
                     if (taskId != -1) {

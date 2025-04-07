@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.*
@@ -24,6 +25,7 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -263,12 +265,18 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     val coroutineScope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<Task>() }
     var isLoading by remember { mutableStateOf(false) }
-    val backgroundColor = Color(0xFFFFFBEB)  // Your app's background color
+    val backgroundColor = Color(0xFFFFFBEB)
+    val apiService = RetrofitInstance.api
+
+    // Log untuk memverifikasi parameter saat komponen dimuat
+    LaunchedEffect(Unit) {
+        println("ProjectDetailScreen loaded with userId: $userId, groupId: $groupId, projectId: $projectId")
+    }
 
     LaunchedEffect(key1 = projectId) {
         isLoading = true
         try {
-            val response = RetrofitInstance.api.getTask(userId, groupId, projectId)
+            val response = apiService.getTask(userId, groupId, projectId)
             tasks.clear()
             tasks.addAll(response)
         } catch (e: Exception) {
@@ -279,18 +287,15 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         }
     }
 
-    // Use Box as root container to have complete control over layout
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
     ) {
-        // Main content column
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                // Add padding to ensure content doesn't get hidden under the button
                 .padding(bottom = 72.dp)
         ) {
             Card(
@@ -299,11 +304,48 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = project.name ?: "Tanpa Nama",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = project.name ?: "Tanpa Nama",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = {
+                            // Log untuk memverifikasi nilai sebelum penghapusan
+                            println("Attempting to delete project with userId: $userId, groupId: $groupId, projectId: $projectId")
+                            coroutineScope.launch {
+                                try {
+                                    val response = apiService.deleteProject(userId, groupId, projectId)
+                                    if (response == Unit) { // Asumsi deleteProject mengembalikan Unit
+                                        navController.popBackStack()
+                                        Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: HttpException) {
+                                    when (e.code()) {
+                                        403 -> {
+                                            println("HTTP 403 Forbidden: ${e.message()} - Possible groupId mismatch")
+                                            Toast.makeText(context, "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.", Toast.LENGTH_LONG).show()
+                                        }
+                                        else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    e.printStackTrace()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    e.printStackTrace()
+                                }
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Project",
+                                tint = Color.Red
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
@@ -375,10 +417,13 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                     items(tasks) { task ->
                         TaskCard(
                             task = task,
+                            userId = userId,
+                            groupId = groupId,
+                            projectId = projectId,
                             onStatusChange = { updatedTask ->
                                 coroutineScope.launch {
                                     try {
-                                        val response = RetrofitInstance.api.updateTask(
+                                        val response = apiService.updateTask(
                                             userId, groupId, projectId, task.id!!, TaskRequest(
                                                 id = task.id,
                                                 name = task.name ?: "",
@@ -405,6 +450,18 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             onEditClick = {
                                 println("Edit clicked for taskId: ${task.id}")
                                 navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
+                            },
+                            onDeleteClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)
+                                        tasks.remove(task)
+                                        Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Gagal menghapus tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }
                         )
                     }
@@ -412,7 +469,6 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             }
         }
 
-        // Button positioned at the bottom with no background container
         Button(
             onClick = {
                 navController.navigate("add_task/$userId/$groupId/$projectId/-1")
@@ -422,7 +478,6 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278)),
-            // Remove any default elevation that might create shadow/background
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
                 pressedElevation = 0.dp
@@ -438,10 +493,17 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 @Composable
 fun TaskCard(
     task: Task,
+    userId: Int,
+    groupId: Int,
+    projectId: Int,
     onStatusChange: (Task) -> Unit,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val apiService = RetrofitInstance.api
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -480,11 +542,20 @@ fun TaskCard(
                     )
                 }
             }
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "Edit Task",
-                modifier = Modifier.clickable { onEditClick() }
-            )
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Task",
+                    modifier = Modifier.clickable { onEditClick() }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Task",
+                    modifier = Modifier.clickable { onDeleteClick() },
+                    tint = Color.Red
+                )
+            }
         }
     }
 }

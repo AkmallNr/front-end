@@ -6,8 +6,6 @@ import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import retrofit2.Response
 import retrofit2.http.*
-import java.sql.Date
-import java.time.LocalDate
 
 interface ApiService {
     @GET("users")
@@ -19,7 +17,6 @@ interface ApiService {
         @Path("groupId") groupId: Int
     ): List<Project>
 
-
     @POST("users")
     suspend fun createUser(@Body user: User): User
 
@@ -27,7 +24,7 @@ interface ApiService {
     suspend fun deleteUser(@Path("userId") id: Int)
 
     @DELETE("users/{userId}/groups/{groupId}")
-    suspend fun deleteGroup(@Path("userId") userId: Int, @Path("groupId")groupId: Int)
+    suspend fun deleteGroup(@Path("userId") userId: Int, @Path("groupId") groupId: Int)
 
     // ✅ API untuk menambahkan grup ke user
     @POST("users/{id}/groups")
@@ -47,7 +44,7 @@ interface ApiService {
     suspend fun addTaskToProject(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int,
-        @Path("projectId") projectId : Int,
+        @Path("projectId") projectId: Int,
         @Body tasksRequest: TaskRequest
     ): Response<Task>
 
@@ -66,6 +63,23 @@ interface ApiService {
         @Path("taskId") taskId: Int,
         @Body taskRequest: TaskRequest
     ): Response<Task>
+
+    // ✅ Tambahan baru: Menghapus Project
+    @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}")
+    suspend fun deleteProject(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int
+    )
+
+    // ✅ Tambahan baru: Menghapus Task
+    @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
+    suspend fun deleteTask(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Path("taskId") taskId: Int
+    )
 }
 
 // ✅ Model request untuk menambahkan grup ke user
@@ -77,7 +91,7 @@ data class GroupRequest(
 data class ProjectRequest(
     val name: String,
     val description: String,
-    val startDate: String,
+    val startDate: String?,
     val endDate: String
 )
 
