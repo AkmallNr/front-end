@@ -157,8 +157,8 @@ fun HomeScreen(navController: NavHostController) {
                             Log.d("DEBUG", "Project ditemukan: ${project.name}, Deskripsi: ${project.description}")
 
                             TaskGroupCard(
-                                project.name,
-                                project.description,
+                                project.name.toString(),
+                                project.description.toString(),
                                 { 0.7f },
                                 Color(0xFFFFC1E3)
                             )

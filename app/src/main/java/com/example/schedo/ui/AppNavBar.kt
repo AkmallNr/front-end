@@ -103,7 +103,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
                 }
             }
             composable(BottomNavItem.JADWAL.route) {
-                ScheduleScreen(navController, userId, groupId)
+                ScheduleScreen(navController, userId)
             }
             composable(BottomNavItem.POMODORO.route) {
                 PomodoroScreen(navController)

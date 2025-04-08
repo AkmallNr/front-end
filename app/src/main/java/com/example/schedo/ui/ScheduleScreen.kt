@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
@@ -29,25 +30,28 @@ import retrofit2.HttpException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) {
+fun ScheduleScreen(navController: NavHostController, userId: Int) {
     var selectedTab by remember { mutableStateOf(0) } // Default to Schedule tab
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
     var selectedProject by remember { mutableStateOf<Project?>(null) }
+    val groups = remember { mutableStateListOf<Group>() }
 
     val backgroundColor = Color(0xFFFFFBEB)
     val selectedTabColor = Color(0xFFFFC278)
 
-    fun fetchProjects() {
+    fun fetchGroups() {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByGroup(userId, groupId)
-                projects.clear()
-                projects.addAll(response)
+                val response = apiService.getGroups(userId)
+                groups.clear()
+                groups.addAll(response)
+                println("Groups fetched successfully: ${groups.size} groups for userId: $userId")
             } catch (e: Exception) {
+                println("Failed to fetch groups for userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -55,9 +59,33 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) 
         }
     }
 
+    fun fetchProjects() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = apiService.getProjectsByUser(userId)
+                println("Raw API response for userId: $userId - $response") // Log respons mentah
+                projects.clear()
+                projects.addAll(response)
+                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
+                // Log detail setiap proyek
+                projects.forEach { project ->
+                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
+                }
+            } catch (e: Exception) {
+                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
     LaunchedEffect(key1 = Unit) {
+        if (groups.isEmpty()) {
+            fetchGroups() // Ambil grup saat pertama kali dimuat
+        }
         if (projects.isEmpty()) {
-            fetchProjects()
+            fetchProjects() // Ambil proyek saat pertama kali dimuat
         }
     }
 
@@ -123,8 +151,7 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) 
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
                         onProjectClick = { project -> selectedProject = project },
-                        userId = userId,
-                        groupId = groupId
+                        userId = userId
                     )
                     1 -> {
                         Box(
@@ -140,7 +167,11 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) 
                     }
                 }
             } else {
-                ProjectDetailScreen(navController, selectedProject!!, userId, groupId)
+                ProjectDetailScreen(
+                    navController,
+                    selectedProject!!,
+                    userId,
+                    groupId = selectedProject!!.groupId)
             }
         }
     }
@@ -176,9 +207,8 @@ fun TabButton(
 
 @Composable
 fun ProjectContentWithData(
-    onProjectClick: (Project) -> Unit,
-    userId: Int,
-    groupId: Int
+    onProjectClick: (Project) -> Unit, // Callback tetap menerima seluruh objek Project
+    userId: Int
 ) {
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -189,10 +219,17 @@ fun ProjectContentWithData(
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByGroup(userId, groupId)
+                val response = apiService.getProjectsByUser(userId)
+                println("Raw API response for userId: $userId - $response") // Log respons mentah
                 projects.clear()
                 projects.addAll(response)
+                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
+                // Log detail setiap proyek
+                projects.forEach { project ->
+                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
+                }
             } catch (e: Exception) {
+                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -228,7 +265,11 @@ fun ProjectContentWithData(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
-                        .clickable { onProjectClick(project) },
+                        .clickable {
+                            // Log projectId dan groupId saat proyek diklik
+                            println("Project clicked - projectId: ${project.id}, groupId: ${project.groupId}, userId: $userId")
+                            onProjectClick(project) // Mengirim seluruh objek Project ke callback
+                        },
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
@@ -452,6 +493,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                 navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
                             },
                             onDeleteClick = {
+                                println("Attempting to delete task with userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
                                 coroutineScope.launch {
                                     try {
                                         apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)

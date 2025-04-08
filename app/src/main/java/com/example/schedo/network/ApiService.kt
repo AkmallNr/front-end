@@ -11,6 +11,13 @@ interface ApiService {
     @GET("users")
     suspend fun getUsers(): List<User>
 
+    // 🔹 Endpoint baru: Mendapatkan semua proyek berdasarkan userId
+    @GET("users/{userId}/projects")
+    suspend fun getProjectsByUser(
+        @Path("userId") userId: Int
+    ): List<Project>
+
+    // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
         @Path("userId") userId: Int,
@@ -23,14 +30,21 @@ interface ApiService {
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)
 
-    @DELETE("users/{userId}/groups/{groupId}")
-    suspend fun deleteGroup(@Path("userId") userId: Int, @Path("groupId") groupId: Int)
+    @GET("users/{userId}/groups")
+    suspend fun getGroups(
+        @Path("userId") userId: Int
+    ): List<Group>
 
-    // ✅ API untuk menambahkan grup ke user
+    @DELETE("users/{userId}/groups/{groupId}")
+    suspend fun deleteGroup(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int
+    )
+
     @POST("users/{id}/groups")
     suspend fun addGroupToUser(
         @Path("id") id: Int,
-        @Body name: GroupRequest
+        @Body groupRequest: GroupRequest
     ): Response<Group>
 
     @POST("users/{userId}/groups/{groupId}/projects")
@@ -45,7 +59,7 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int,
-        @Body tasksRequest: TaskRequest
+        @Body taskRequest: TaskRequest
     ): Response<Task>
 
     @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks")
@@ -64,7 +78,6 @@ interface ApiService {
         @Body taskRequest: TaskRequest
     ): Response<Task>
 
-    // ✅ Tambahan baru: Menghapus Project
     @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}")
     suspend fun deleteProject(
         @Path("userId") userId: Int,
@@ -72,7 +85,6 @@ interface ApiService {
         @Path("projectId") projectId: Int
     )
 
-    // ✅ Tambahan baru: Menghapus Task
     @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun deleteTask(
         @Path("userId") userId: Int,
@@ -82,7 +94,6 @@ interface ApiService {
     )
 }
 
-// ✅ Model request untuk menambahkan grup ke user
 data class GroupRequest(
     val name: String,
     val icon: String
@@ -98,10 +109,10 @@ data class ProjectRequest(
 data class TaskRequest(
     val id: Int? = null,
     val name: String,
-    val description: String?= null,
-    val deadline:String? = null,
-    val reminder:String? = null,
-    val priority:String,
+    val description: String? = null,
+    val deadline: String? = null,
+    val reminder: String? = null,
+    val priority: String,
     val attachment: List<String>? = null,
     val status: Boolean? = null
 )
