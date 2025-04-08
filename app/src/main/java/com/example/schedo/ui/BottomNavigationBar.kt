@@ -90,7 +90,7 @@ fun BottomNavigationBar(navController: NavHostController) {
 
         FloatingActionButton(
             onClick = {
-                navController.navigate("add_todo")
+                navController.navigate("add_todo/{userId}/{groupId}/{projectId}")
             },
             modifier = Modifier
                 .size(64.dp)

@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) {
+fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
     var selectedTab by remember { mutableStateOf(0) } // Default to Schedule tab
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -121,6 +121,10 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int) 
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
                         onProjectClick = { project -> selectedProject = project },
+                        onEditClick = { project ->
+                                println("Edit clicked for poject ${project.id} group ${groupId}")
+                                        navController.navigate("add_todo/$userId/$groupId/${project.id}")
+                                },
                         userId = userId,
                         groupId = groupId
                     )
@@ -181,6 +185,7 @@ fun TabButton(
 @Composable
 fun ProjectContentWithData(
     onProjectClick: (Project) -> Unit,
+    onEditClick: (Project) -> Unit, // Tambahkan callback edit
     userId: Int,
     groupId: Int
 ) {
@@ -231,36 +236,54 @@ fun ProjectContentWithData(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
                         .clickable { onProjectClick(project) },
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = project.name ?: "Tanpa Nama",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = project.name ?: "Tanpa Nama",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                        }
+
+                        IconButton(onClick = { onEditClick(project) }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Project",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

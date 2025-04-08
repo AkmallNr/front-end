@@ -36,6 +36,11 @@ interface ApiService {
         @Body name: GroupRequest
     ): Response<Group>
 
+    @GET("users/{userId}/groups")
+    suspend fun getGroup(
+        @Path("userId") userId: Int
+    ): List<Group>
+
     @POST("users/{userId}/groups/{groupId}/projects")
     suspend fun addProjectToGroup(
         @Path("userId") userId: Int,
@@ -66,6 +71,14 @@ interface ApiService {
         @Path("taskId") taskId: Int,
         @Body taskRequest: TaskRequest
     ): Response<Task>
+
+    @PUT("users/{userId}/groups/{groupId}/projects/{projectId}")
+    suspend fun updateProject(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Body projectRequest: ProjectRequest
+    ): Response<Project>
 }
 
 // ✅ Model request untuk menambahkan grup ke user

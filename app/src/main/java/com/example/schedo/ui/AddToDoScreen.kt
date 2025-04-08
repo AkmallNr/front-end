@@ -18,9 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.User
 import com.example.schedo.network.GroupRequest
@@ -34,15 +36,37 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTodoScreen(navController: NavController) {
-    var taskGroup by remember { mutableStateOf("Choose Group") }
-    var projectName by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf("Choose Start Date") }
-    var endDate by remember { mutableStateOf("Choose End Date") }
+fun AddTodoScreen(
+    navController: NavController,
+    projectId: Int? = null,
+    project: Project? = null,
+    groupId: Int? = null,
+    userId: Int? = null,) {
+
+    var group by remember { mutableStateOf<List<Group>>(emptyList()) }
+    val selectedGroupName by remember(group, groupId) {
+        derivedStateOf {
+            group.find { it.id == groupId }?.name ?: "Choose Group"
+        }
+    }
+    var taskGroup by remember { mutableStateOf("") }
+    var projectName by remember { mutableStateOf(project?.name ?: "") }
+    var description by remember { mutableStateOf(project?.description ?: "") }
+    var startDate by remember { mutableStateOf(project?.startDate ?: "Choose Start Date") }
+    var endDate by remember { mutableStateOf(project?.endDate ?: "Choose End Date") }
     val coroutineScope = rememberCoroutineScope()
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedGroupName) {
+        taskGroup = selectedGroupName
+    }
+
+
+    println("Group list: $group")
+    println("id grup : $groupId")
+    println("nama grup : $selectedGroupName")
+
 
     fun fetchUsers() {
         coroutineScope.launch {
@@ -61,7 +85,13 @@ fun AddTodoScreen(navController: NavController) {
     }
 
     LaunchedEffect(Unit) {
+        try {
+            group = RetrofitInstance.api.getGroup(userId!!) // asumsi fungsi ini ada
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         fetchUsers()
+
     }
 
     fun saveProject() {
@@ -93,11 +123,15 @@ fun AddTodoScreen(navController: NavController) {
             println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
             println("grup id : ${groupId}")
             try {
-                val response = RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                val response = if (projectId == null) {
+                    RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                } else {
+                    RetrofitInstance.api.updateProject(userId, groupId, projectId, projectData)
+                }
                 if (response.isSuccessful) {
                     println("Project saved successfully!")
-                    navController.navigate("add_task") {
-                        popUpTo("todo") { inclusive = false }
+                    navController.navigate(BottomNavItem.JADWAL.route) {
+                        popUpTo(BottomNavItem.JADWAL.route) { inclusive = false }
                     }
                     taskGroup = "Choose Group"
                     projectName = ""
@@ -123,7 +157,7 @@ fun AddTodoScreen(navController: NavController) {
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(if (projectId == null) "Add Project" else "Edit Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 navigationIcon = {
@@ -214,7 +248,7 @@ fun AddTodoScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
             ) {
-                Text("Add Project", color = Color.White)
+                Text(if (projectId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
             }
         }
     }
