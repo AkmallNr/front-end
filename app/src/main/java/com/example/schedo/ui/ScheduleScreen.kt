@@ -43,6 +43,7 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, 
             isLoading = true
             try {
                 val response = apiService.getProjectsByGroup(userId, groupId)
+                println("userid : ${userId}, groupid : ${groupId}")
                 projects.clear()
                 projects.addAll(response)
             } catch (e: Exception) {
