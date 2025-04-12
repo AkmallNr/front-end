@@ -17,12 +17,14 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             var userId by remember { mutableStateOf(1) } // Nilai default
             var groupId by remember { mutableStateOf(1) } // Nilai default
+            val projectId by remember { mutableStateOf(1) }
+
 
             // Logika untuk mengatur userId dan groupId (misalnya dari sesi login)
             // userId = getUserIdFromSession()
             // groupId = getGroupIdFromSession()
 
-            AppNavHost(navController = navController, userId = userId, groupId = groupId)
+            AppNavHost(navController = navController, userId = userId, groupId = groupId, projectId = projectId)
         }
     }
 }

@@ -152,8 +152,8 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, 
                     0 -> ProjectContentWithData(
                         onProjectClick = { project -> selectedProject = project },
                         onEditClick = { project ->
-                            println("Edit clicked for poject ${project.id} group ${groupId}")
-                            navController.navigate("add_todo/$userId/$groupId/${project.id}")
+                            println("Edit clicked for poject ${project.id} group ${project.groupId}")
+                            navController.navigate("add_todo/$userId/${project.groupId}/${project.id}")
                         },
                         userId = userId,
                         groupId = groupId
@@ -282,7 +282,16 @@ fun ProjectContentWithData(
                         containerColor = Color.White
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
                             text = project.name ?: "Tanpa Nama",
                             style = MaterialTheme.typography.titleMedium,
@@ -300,6 +309,7 @@ fun ProjectContentWithData(
                             color = Color.Gray
                         )
                     }
+
                     IconButton(onClick = { onEditClick(project) }) {
                         Icon(
                             imageVector = Icons.Default.Edit,
@@ -307,6 +317,7 @@ fun ProjectContentWithData(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
+                }
                 }
             }
         }

@@ -90,7 +90,8 @@ fun BottomNavigationBar(navController: NavHostController) {
 
         FloatingActionButton(
             onClick = {
-                navController.navigate("add_todo")
+                navController.navigate("new_project/1")
+//                println("")
             },
             modifier = Modifier
                 .size(64.dp)

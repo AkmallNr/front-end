@@ -48,11 +48,11 @@ fun AddTodoScreen(
         }
     }
 
-    var taskGroup by remember { mutableStateOf("Choose Group") }
-    var projectName by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf("Choose Start Date") }
-    var endDate by remember { mutableStateOf("Choose End Date") }
+    var taskGroup by remember { mutableStateOf("") }
+    var projectName by remember { mutableStateOf(project?.name ?: "") }
+    var description by remember { mutableStateOf(project?.description ?: "") }
+    var startDate by remember { mutableStateOf(project?.startDate ?: "Choose Start Date") }
+    var endDate by remember { mutableStateOf(project?.endDate ?: "Choose End Date") }
     val coroutineScope = rememberCoroutineScope()
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
