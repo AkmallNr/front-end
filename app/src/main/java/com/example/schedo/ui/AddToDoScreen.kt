@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.User
 import com.example.schedo.network.GroupRequest
@@ -34,7 +35,19 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
+fun AddTodoScreen(
+    navController: NavController,
+    projectId: Int? = null,
+    project: Project? = null,
+    groupId: Int? = null,
+    userId: Int? = null,) {
+    var group by remember { mutableStateOf<List<Group>>(emptyList()) }
+    val selectedGroupName by remember(group, groupId) {
+        derivedStateOf {
+            group.find { it.id == groupId }?.name ?: "Choose Group"
+        }
+    }
+
     var taskGroup by remember { mutableStateOf("Choose Group") }
     var projectName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -44,6 +57,15 @@ fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedGroupName) {
+        taskGroup = selectedGroupName
+    }
+
+
+    println("Group list: $group")
+    println("id grup : $groupId")
+    println("nama grup : $selectedGroupName")
 
     fun fetchUsers() {
         coroutineScope.launch {
@@ -62,6 +84,12 @@ fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
     }
 
     LaunchedEffect(Unit) {
+        try {
+            group = RetrofitInstance.api.getGroup(userId!!) // asumsi fungsi ini ada
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         fetchUsers()
     }
 
@@ -88,16 +116,28 @@ fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
             println("Task Group yang dicari: '$taskGroup'")
             user.groups.forEach { println("Grup tersedia: '${it.name}'") }
 
-            val groupIdFromUser = user.groups.find { it.name == taskGroup }?.id ?: groupId
-            val userIdFromParam = userId
-            println("user id : ${userIdFromParam}")
+            val groupId = user.groups.find { it.name == taskGroup }?.id ?: 0
+            val userId = user.id ?: 0
+            println("user id : ${userId}")
             println("Grup yang dimiliki user: ${user.groups.map { it.name }}")
-            println("grup id : ${groupIdFromUser}")
+            println("grup id : ${groupId}")
             try {
-                val response = RetrofitInstance.api.addProjectToGroup(userIdFromParam, groupIdFromUser, projectData)
+                val response = if (projectId == null) {
+                    RetrofitInstance.api.addProjectToGroup(userId, groupId, projectData)
+                } else {
+                    RetrofitInstance.api.updateProject(userId, groupId, projectId, projectData)
+                }
                 if (response.isSuccessful) {
                     println("Project saved successfully!")
-                    showSuccessDialog = true
+                    navController.navigate(BottomNavItem.JADWAL.route) {
+                        popUpTo(BottomNavItem.JADWAL.route) { inclusive = false }
+                    }
+                    taskGroup = "Choose Group"
+                    projectName = ""
+                    description = ""
+                    startDate = "Start Date"
+                    endDate = "End Date"
+                    fetchUsers()
                 } else {
                     println("Failed to save project: ${response.errorBody()?.string()}")
                 }
@@ -241,7 +281,7 @@ fun AddTodoScreen(navController: NavController, userId: Int, groupId: Int) {
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
             ) {
-                Text("Add Project", color = Color.White)
+                Text(if (projectId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
             }
         }
     }
