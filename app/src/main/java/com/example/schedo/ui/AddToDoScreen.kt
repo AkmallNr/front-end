@@ -85,7 +85,7 @@ fun AddTodoScreen(
 
     LaunchedEffect(Unit) {
         try {
-            group = RetrofitInstance.api.getGroup(userId!!) // asumsi fungsi ini ada
+            group = RetrofitInstance.api.getGroups(userId!!) // asumsi fungsi ini ada
         } catch (e: Exception) {
             e.printStackTrace()
         }

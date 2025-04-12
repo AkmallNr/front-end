@@ -30,7 +30,7 @@ import retrofit2.HttpException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController, userId: Int) {
+fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
     var selectedTab by remember { mutableStateOf(0) } // Default to Schedule tab
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -151,7 +151,6 @@ fun ScheduleScreen(navController: NavHostController, userId: Int) {
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
                         onProjectClick = { project -> selectedProject = project },
-                        userId = userId,
                         onEditClick = { project ->
                             println("Edit clicked for poject ${project.id} group ${groupId}")
                             navController.navigate("add_todo/$userId/$groupId/${project.id}")

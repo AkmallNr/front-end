@@ -78,6 +78,14 @@ interface ApiService {
         @Body taskRequest: TaskRequest
     ): Response<Task>
 
+    @PUT("users/{userId}/groups/{groupId}/projects/{projectId}")
+    suspend fun updateProject(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Body projectRequest: ProjectRequest
+    ): Response<Project>
+
     @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}")
     suspend fun deleteProject(
         @Path("userId") userId: Int,
