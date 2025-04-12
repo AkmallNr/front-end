@@ -14,3 +14,8 @@ val Platinum = Color(0xFFCFD8DC)
 val Celadon = Color(0xFFA5D6A7)
 val Timberwolf = Color(0xFFD7CC8)
 val Charcoal = Color(0xFF3747DF)
+
+val Background = Color(0xFFFFFBDA)
+val Utama1 = Color(0xFFFFEC9E)
+val Utama2 = Color(0xFFFFBB70)
+val Utama3 = Color(0xFFED9455)
