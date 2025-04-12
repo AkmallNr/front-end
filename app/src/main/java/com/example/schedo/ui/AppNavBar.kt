@@ -13,6 +13,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
+import com.example.schedo.model.Group
+import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.UserManagementScreen
@@ -38,16 +40,45 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int) {
                 HomeScreen(navController)
             }
             composable(
-                "add_todo",
+                "add_todo/{userId}/{groupId}/{projectId}",
                 arguments = listOf(
-                    navArgument("userId") { type = NavType.IntType; defaultValue = userId },
-                    navArgument("groupId") { type = NavType.IntType; defaultValue = groupId }
+                    navArgument("userId") { type = NavType.IntType },
+                    navArgument("groupId") { type = NavType.IntType },
+                    navArgument("projectId") { type = NavType.IntType; defaultValue = -1 }
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
                 val receivedUserId = args?.getInt("userId") ?: userId
                 val receivedGroupId = args?.getInt("groupId") ?: groupId
-                AddTodoScreen(navController, receivedUserId, receivedGroupId)
+                val projectId = args?.getInt("projectId") ?: -1
+
+                var group by remember { mutableStateOf<List<Group>?>(null) }
+                var project by remember { mutableStateOf<Project?>(null) }
+                var isLoading by remember { mutableStateOf(true) }
+
+                val coroutineScope = rememberCoroutineScope()
+
+                // Muat tugas jika dalam mode edit
+                LaunchedEffect(key1 = projectId) {
+                    isLoading = true
+                    if (projectId != -1) {
+                        try {
+                            val projects = RetrofitInstance.api.getProjectsByGroup(receivedUserId, receivedGroupId)
+                            project = projects.find { it.id == projectId }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    isLoading = false
+                }
+
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    AddTodoScreen(navController = navController, projectId = if (projectId != -1) projectId else null, project = project, receivedGroupId, receivedUserId )
+                }
             }
             composable(
                 "add_task/{userId}/{groupId}/{projectId}/{taskId}",
