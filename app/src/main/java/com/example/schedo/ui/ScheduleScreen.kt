@@ -151,7 +151,13 @@ fun ScheduleScreen(navController: NavHostController, userId: Int) {
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
                         onProjectClick = { project -> selectedProject = project },
-                        userId = userId
+                        userId = userId,
+                        onEditClick = { project ->
+                            println("Edit clicked for poject ${project.id} group ${groupId}")
+                            navController.navigate("add_todo/$userId/$groupId/${project.id}")
+                        },
+                        userId = userId,
+                        groupId = groupId
                     )
                     1 -> {
                         Box(
@@ -207,8 +213,10 @@ fun TabButton(
 
 @Composable
 fun ProjectContentWithData(
-    onProjectClick: (Project) -> Unit, // Callback tetap menerima seluruh objek Project
-    userId: Int
+    onProjectClick: (Project) -> Unit,
+    onEditClick: (Project) -> Unit, // Tambahkan callback edit
+    userId: Int,
+    groupId: Int
 ) {
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -291,6 +299,13 @@ fun ProjectContentWithData(
                             text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.Gray
+                        )
+                    }
+                    IconButton(onClick = { onEditClick(project) }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Project",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
