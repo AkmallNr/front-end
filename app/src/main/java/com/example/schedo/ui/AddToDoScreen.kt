@@ -28,6 +28,7 @@ import com.example.schedo.model.User
 import com.example.schedo.network.GroupRequest
 import com.example.schedo.network.ProjectRequest
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Utama2
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.text.SimpleDateFormat
@@ -279,9 +280,9 @@ fun AddTodoScreen(
             Button(
                 onClick = { saveProject() },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
-                Text(if (projectId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
+                Text(if (projectId == null) "Simpan Project" else "Simpan Perubahan", fontSize = 18.sp)
             }
         }
     }
