@@ -6,19 +6,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
-import androidx.compose.ui.Modifier
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.UserManagementScreen
-
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
@@ -42,9 +42,9 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
             composable(
                 "add_todo/{userId}/{groupId}/{projectId}",
                 arguments = listOf(
-                navArgument("userId") { type = NavType.IntType },
-                navArgument("groupId") { type = NavType.IntType },
-                navArgument("projectId") { type = NavType.IntType; defaultValue = -1 }
+                    navArgument("userId") { type = NavType.IntType },
+                    navArgument("groupId") { type = NavType.IntType },
+                    navArgument("projectId") { type = NavType.IntType; defaultValue = -1 }
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
@@ -90,6 +90,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
+
                 val receivedUserId = args?.getInt("userId") ?: userId
                 val receivedGroupId = args?.getInt("groupId") ?: groupId
                 val receivedProjectId = args?.getInt("projectId") ?: 0
@@ -100,7 +101,6 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
 
                 val coroutineScope = rememberCoroutineScope()
 
-                // Muat tugas jika dalam mode edit
                 LaunchedEffect(key1 = taskId) {
                     isLoading = true
                     if (taskId != -1) {

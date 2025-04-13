@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
             var groupId by remember { mutableStateOf(1) } // Nilai default
             val projectId by remember { mutableStateOf(1) }
 
+
             // Logika untuk mengatur userId dan groupId (misalnya dari sesi login)
             // userId = getUserIdFromSession()
             // groupId = getGroupIdFromSession()

@@ -88,13 +88,13 @@ fun HomeScreen(navController: NavHostController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    val groupName = "ngamprah plosok"
-                    val userInGroup = users.find { user ->
-                        user.groups.any { it.name.trim() == groupName.trim() }
-                    }?.name
+                    val user = users.find { it.id == 1 }
+
 
                     Text("Hello!", fontSize = 20.sp, color = Color.Gray)
-                    Text("${userInGroup}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    if (user != null) {
+                        Text("${user.name}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 Icon(
                     imageVector = Icons.Filled.Notifications,
@@ -157,8 +157,8 @@ fun HomeScreen(navController: NavHostController) {
                             Log.d("DEBUG", "Project ditemukan: ${project.name}, Deskripsi: ${project.description}")
 
                             TaskGroupCard(
-                                project.name,
-                                project.description,
+                                project.name.toString(),
+                                project.description.toString(),
                                 { 0.7f },
                                 Color(0xFFFFC1E3)
                             )

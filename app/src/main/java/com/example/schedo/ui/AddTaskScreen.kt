@@ -62,7 +62,7 @@ suspend fun uploadFileToDrive(
     return withContext(Dispatchers.IO) {
         try {
             android.util.Log.d("UploadFileToDrive", "Membaca file kredensial JSON")
-            val inputStream = context.resources.openRawResource(R.raw.schedo_455511_3d282be6c42c)
+            val inputStream = context.resources.openRawResource(R.raw.schedo_455511_9c59d241a7ce)
             android.util.Log.d("UploadFileToDrive", "Membuat kredensial Service Account")
             val credentials = ServiceAccountCredentials.fromStream(inputStream)
                 .createScoped(listOf(DriveScopes.DRIVE_FILE))

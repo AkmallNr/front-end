@@ -1,6 +1,5 @@
 package com.example.schedo.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -21,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Utama2
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Clock
@@ -43,47 +44,110 @@ fun BottomNavigationBar(navController: NavHostController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .background(Color(0xFFEDE7F6)),
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(Background),
             color = Color.Transparent
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, // Ganti ke SpaceBetween
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items.forEach { item ->
-                    val selected = currentRoute == item.route
-                    val animatedSize by animateFloatAsState(
-                        targetValue = if (selected) 1.2f else 1.0f,
-                        animationSpec = spring()
-                    )
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = {
-                            if (currentRoute != item.route) {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        }) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.title,
-                                modifier = Modifier.size((24 * animatedSize).dp),
-                                tint = if (selected) Color(0xFF673AB7) else Color.Gray
-                            )
-                        }
-                        AnimatedVisibility(visible = selected) {
-                            Text(text = item.title, style = MaterialTheme.typography.labelSmall)
+                // Ikon 1: Home
+                val selected1 = currentRoute == items[0].route
+                val animatedSize1 by animateFloatAsState(
+                    targetValue = if (selected1) 1.2f else 1.0f,
+                    animationSpec = spring()
+                )
+                IconButton(onClick = {
+                    if (currentRoute != items[0].route) {
+                        navController.navigate(items[0].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     }
+                }) {
+                    Icon(
+                        imageVector = items[0].icon,
+                        contentDescription = items[0].title,
+                        modifier = Modifier.size((24 * animatedSize1).dp),
+                        tint = if (selected1) Utama2 else Color.Gray
+                    )
+                }
+
+                // Ikon 2: Jadwal
+                val selected2 = currentRoute == items[1].route
+                val animatedSize2 by animateFloatAsState(
+                    targetValue = if (selected2) 1.2f else 1.0f,
+                    animationSpec = spring()
+                )
+                IconButton(onClick = {
+                    if (currentRoute != items[1].route) {
+                        navController.navigate(items[1].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }) {
+                    Icon(
+                        imageVector = items[1].icon,
+                        contentDescription = items[1].title,
+                        modifier = Modifier.size((24 * animatedSize2).dp),
+                        tint = if (selected2) Utama2 else Color.Gray
+                    )
+                }
+
+                // Spacer untuk memberikan jarak di sekitar FAB
+                Spacer(modifier = Modifier.width(48.dp))
+
+                // Ikon 3: Pomodoro
+                val selected3 = currentRoute == items[2].route
+                val animatedSize3 by animateFloatAsState(
+                    targetValue = if (selected3) 1.2f else 1.0f,
+                    animationSpec = spring()
+                )
+                IconButton(onClick = {
+                    if (currentRoute != items[2].route) {
+                        navController.navigate(items[2].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }) {
+                    Icon(
+                        imageVector = items[2].icon,
+                        contentDescription = items[2].title,
+                        modifier = Modifier.size((24 * animatedSize3).dp),
+                        tint = if (selected3) Utama2 else Color.Gray
+                    )
+                }
+
+                // Ikon 4: Profile
+                val selected4 = currentRoute == items[3].route
+                val animatedSize4 by animateFloatAsState(
+                    targetValue = if (selected4) 1.2f else 1.0f,
+                    animationSpec = spring()
+                )
+                IconButton(onClick = {
+                    if (currentRoute != items[3].route) {
+                        navController.navigate(items[3].route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }) {
+                    Icon(
+                        imageVector = items[3].icon,
+                        contentDescription = items[3].title,
+                        modifier = Modifier.size((24 * animatedSize4).dp),
+                        tint = if (selected4) Utama2 else Color.Gray
+                    )
                 }
             }
         }
@@ -91,14 +155,13 @@ fun BottomNavigationBar(navController: NavHostController) {
         FloatingActionButton(
             onClick = {
                 navController.navigate("new_project/1")
-//                println("")
             },
             modifier = Modifier
                 .size(64.dp)
-                .offset(y = (-36).dp)
+                .offset(y = (-32).dp)
                 .align(Alignment.Center),
             shape = CircleShape,
-            containerColor = Color(0xFF673AB7)
+            containerColor = Utama2
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", tint = Color.White)
         }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -28,11 +28,11 @@ import com.example.schedo.model.User
 import com.example.schedo.network.GroupRequest
 import com.example.schedo.network.ProjectRequest
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Utama2
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.*
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,13 +42,13 @@ fun AddTodoScreen(
     project: Project? = null,
     groupId: Int? = null,
     userId: Int? = null,) {
-
     var group by remember { mutableStateOf<List<Group>>(emptyList()) }
     val selectedGroupName by remember(group, groupId) {
         derivedStateOf {
             group.find { it.id == groupId }?.name ?: "Choose Group"
         }
     }
+
     var taskGroup by remember { mutableStateOf("") }
     var projectName by remember { mutableStateOf(project?.name ?: "") }
     var description by remember { mutableStateOf(project?.description ?: "") }
@@ -57,6 +57,7 @@ fun AddTodoScreen(
     val coroutineScope = rememberCoroutineScope()
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedGroupName) {
         taskGroup = selectedGroupName
@@ -66,7 +67,6 @@ fun AddTodoScreen(
     println("Group list: $group")
     println("id grup : $groupId")
     println("nama grup : $selectedGroupName")
-
 
     fun fetchUsers() {
         coroutineScope.launch {
@@ -86,12 +86,12 @@ fun AddTodoScreen(
 
     LaunchedEffect(Unit) {
         try {
-            group = RetrofitInstance.api.getGroup(userId!!) // asumsi fungsi ini ada
+            group = RetrofitInstance.api.getGroups(userId!!) // asumsi fungsi ini ada
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        fetchUsers()
 
+        fetchUsers()
     }
 
     fun saveProject() {
@@ -149,6 +149,40 @@ fun AddTodoScreen(
         }
     }
 
+    // Dialog Sukses
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            title = { Text("Sukses") },
+            text = { Text("Project berhasil disimpan!") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSuccessDialog = false
+                        navController.navigate(BottomNavItem.JADWAL.route) { // Changed to route to Schedule screen
+                            popUpTo("add_todo") { inclusive = true }
+                        }
+                        taskGroup = "Choose Group"
+                        projectName = ""
+                        description = ""
+                        startDate = "Choose Start Date"
+                        endDate = "Choose End Date"
+                        fetchUsers()
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSuccessDialog = false }
+                ) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -157,7 +191,7 @@ fun AddTodoScreen(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(if (projectId == null) "Add Project" else "Edit Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Add Project", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 navigationIcon = {
@@ -246,14 +280,13 @@ fun AddTodoScreen(
             Button(
                 onClick = { saveProject() },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
-                Text(if (projectId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
+                Text(if (projectId == null) "Simpan Project" else "Simpan Perubahan", fontSize = 18.sp)
             }
         }
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -281,15 +314,12 @@ fun CardField(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val currentOnAddGroup = rememberUpdatedState(onAddTaskGroup)
 
-    // Expanded list of FontAwesome icons mapped to Material icons
     val fontAwesomeIcons = listOf(
-        // Original icons
         Pair("fas fa-users", Icons.Default.Group),
         Pair("fas fa-folder", Icons.Default.Folder),
         Pair("fas fa-star", Icons.Default.Star),
         Pair("fas fa-home", Icons.Default.Home),
         Pair("fas fa-tasks", Icons.Default.List),
-        // Additional icons
         Pair("fas fa-calendar", Icons.Default.CalendarMonth),
         Pair("fas fa-book", Icons.Default.Book),
         Pair("fas fa-bell", Icons.Default.Notifications),
@@ -400,7 +430,6 @@ fun CardField(
                                 .width(280.dp)
                         ) {
                             Column(modifier = Modifier.padding(8.dp)) {
-                                // Custom grid layout since LazyVerticalGrid needs a Composable scope
                                 val rows = 5
                                 val columns = 5
                                 val itemsPerRow = fontAwesomeIcons.size / rows + (if (fontAwesomeIcons.size % rows > 0) 1 else 0)
@@ -435,7 +464,6 @@ fun CardField(
                                                     )
                                                 }
                                             } else {
-                                                // Empty space for alignment
                                                 Spacer(modifier = Modifier.size(40.dp))
                                             }
                                         }
@@ -600,3 +628,4 @@ fun formatDate(millis: Long): String {
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     return sdf.format(Date(millis))
 }
+
