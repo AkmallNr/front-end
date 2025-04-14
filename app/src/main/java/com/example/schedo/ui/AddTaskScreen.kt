@@ -330,6 +330,7 @@ fun AddTaskScreen(
                             Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
+                        println("user id : ${userId}, group id : ${groupId}, project id ${projectId}")
 
                         val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                         val taskRequest = TaskRequest(

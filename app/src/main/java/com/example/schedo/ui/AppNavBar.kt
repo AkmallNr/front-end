@@ -63,7 +63,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                     isLoading = true
                     if (projectId != -1) {
                         try {
-                            val projects = RetrofitInstance.api.getProjectsByGroup(receivedUserId, receivedGroupId)
+                            val projects = RetrofitInstance.api.getProjectsByGroup(receivedUserId, receivedGroupId).data
                             project = projects.find { it.id == projectId }
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -105,7 +105,7 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                     isLoading = true
                     if (taskId != -1) {
                         try {
-                            val tasks = RetrofitInstance.api.getTask(receivedUserId, receivedGroupId, receivedProjectId)
+                            val tasks = RetrofitInstance.api.getTask(receivedUserId, receivedGroupId, receivedProjectId).data
                             task = tasks.find { it.id == taskId }
                         } catch (e: Exception) {
                             e.printStackTrace()

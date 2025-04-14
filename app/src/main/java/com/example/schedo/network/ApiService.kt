@@ -4,25 +4,26 @@ import com.example.schedo.model.User
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
+import com.example.schedo.response.*
 import retrofit2.Response
 import retrofit2.http.*
 
 interface ApiService {
     @GET("users")
-    suspend fun getUsers(): List<User>
+    suspend fun getUsers(): UserResponse
 
     // 🔹 Endpoint baru: Mendapatkan semua proyek berdasarkan userId
     @GET("users/{userId}/projects")
     suspend fun getProjectsByUser(
         @Path("userId") userId: Int
-    ): List<Project>
+    ): ProjectResponse
 
     // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int
-    ): List<Project>
+    ): ProjectResponse
 
     @POST("users")
     suspend fun createUser(@Body user: User): User
@@ -33,7 +34,7 @@ interface ApiService {
     @GET("users/{userId}/groups")
     suspend fun getGroups(
         @Path("userId") userId: Int
-    ): List<Group>
+    ): GroupResponse
 
     @DELETE("users/{userId}/groups/{groupId}")
     suspend fun deleteGroup(
@@ -67,7 +68,7 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int
-    ): List<Task>
+    ): TaskResponse
 
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun updateTask(

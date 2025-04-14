@@ -41,7 +41,7 @@ fun HomeScreen(navController: NavHostController) {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = RetrofitInstance.api.getUsers()
+                val response = RetrofitInstance.api.getUsers().data
                 users.clear()
                 users.addAll(response)
                 println("Fetched users: $response")
@@ -138,17 +138,17 @@ fun HomeScreen(navController: NavHostController) {
             Text("Task Groups", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 users.forEach { user ->
-                    val group = user.groups.find { it.name == " ngamprah plosok" }
+                    val group = user.groups.orEmpty().find { it.name == " ngamprah plosok" }
 
                     if (group == null) {
-                        Log.e("DEBUG", "Group 'Group Akmal' tidak ditemukan untuk user ${user.id}")
+                        Log.e("DEBUG", "Group 'ngamprah plosok' tidak ditemukan untuk user ${user.id}")
                         Log.d("DEBUG", "Total users: ${users.size}")
-                        Log.d("DEBUG", "User ${user.id} memiliki grup: ${user.groups.map { it.name }}")
+                        Log.d("DEBUG", "User ${user.id} memiliki grup: ${user.groups.orEmpty().map { it.name }}")
                     } else {
                         Log.d("DEBUG", "Group ditemukan: ${group.name}")
                     }
 
-                    val projects = group?.projects?.map { it } ?: emptyList()
+                    val projects = group?.projects.orEmpty()
 
                     if (projects.isEmpty()) {
                         Log.e("DEBUG", "Tidak ada proyek dalam grup '${group?.name}'")
@@ -165,8 +165,8 @@ fun HomeScreen(navController: NavHostController) {
                         }
                     }
                 }
-
             }
+
         }
     }
 }

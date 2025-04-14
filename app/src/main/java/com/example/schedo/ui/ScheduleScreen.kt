@@ -46,7 +46,7 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, 
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getGroups(userId)
+                val response = apiService.getGroups(userId).data
                 groups.clear()
                 groups.addAll(response)
                 println("Groups fetched successfully: ${groups.size} groups for userId: $userId")
@@ -63,7 +63,7 @@ fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, 
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByUser(userId)
+                val response = apiService.getProjectsByUser(userId).data
                 println("Raw API response for userId: $userId - $response") // Log respons mentah
                 projects.clear()
                 projects.addAll(response)
@@ -226,7 +226,7 @@ fun ProjectContentWithData(
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByUser(userId)
+                val response = apiService.getProjectsByUser(userId).data
                 println("Raw API response for userId: $userId - $response") // Log respons mentah
                 projects.clear()
                 projects.addAll(response)
@@ -342,7 +342,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     LaunchedEffect(key1 = projectId) {
         isLoading = true
         try {
-            val response = apiService.getTask(userId, groupId, projectId)
+            val response = apiService.getTask(userId, groupId, projectId).data
             tasks.clear()
             tasks.addAll(response)
         } catch (e: Exception) {

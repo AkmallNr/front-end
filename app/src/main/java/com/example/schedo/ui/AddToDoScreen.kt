@@ -72,7 +72,7 @@ fun AddTodoScreen(
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = RetrofitInstance.api.getUsers()
+                val response = RetrofitInstance.api.getUsers().data
                 users.clear()
                 users.addAll(response)
                 println("Fetched users: $response")
@@ -86,7 +86,7 @@ fun AddTodoScreen(
 
     LaunchedEffect(Unit) {
         try {
-            group = RetrofitInstance.api.getGroups(userId!!) // asumsi fungsi ini ada
+            group = RetrofitInstance.api.getGroups(userId!!).data // asumsi fungsi ini ada
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -346,7 +346,7 @@ fun CardField(
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = RetrofitInstance.api.getUsers()
+                val response = RetrofitInstance.api.getUsers().data
                 pengguna.clear()
                 pengguna.addAll(response)
                 println("Fetched users: $response")

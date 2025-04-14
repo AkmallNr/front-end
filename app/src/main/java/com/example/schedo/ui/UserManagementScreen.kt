@@ -35,7 +35,7 @@ fun UserManagementScreen() {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = RetrofitInstance.api.getUsers()
+                val response = RetrofitInstance.api.getUsers().data
                 users.clear()
                 users.addAll(response)
                 println("Fetched users: $response")
