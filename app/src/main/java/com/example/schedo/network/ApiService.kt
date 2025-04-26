@@ -26,7 +26,7 @@ interface ApiService {
     ): ProjectResponse
 
     @POST("users")
-    suspend fun createUser(@Body user: User): User
+    suspend fun createUser(@Body user: User): Response<User>
 
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)

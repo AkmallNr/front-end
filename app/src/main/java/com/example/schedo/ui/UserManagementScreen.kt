@@ -158,16 +158,24 @@ fun UserManagementScreen() {
                         coroutineScope.launch {
                             try {
                                 val newUser = User(name = newUserName, email = newEmail, pass = newPass)
-                                val createdUser = RetrofitInstance.api.createUser(newUser)
-                                println("User created: $createdUser")
-                                newUserName = ""
-                                newEmail = ""
-                                newPass = ""
-                                fetchUsers()
-                                showAddUser = false
-                            } catch (e: Exception) {
+                                val response = RetrofitInstance.api.createUser(newUser)
+
+                                if (response.isSuccessful) {
+                                    println("User created: ${response.body()}")
+                                    newUserName = ""
+                                    newEmail = ""
+                                    newPass = ""
+                                    fetchUsers()
+                                    showAddUser = false
+                                } else {
+                                    println("Error creating user: ${response.code()} ${response.message()}")
+                                }
+                            } catch (e: HttpException) {
+                                println("HTTP error: ${e.message()}")
                                 e.printStackTrace()
-                                println("Error creating user: ${e.message}")
+                            } catch (e: Exception) {
+                                println("General error: ${e.message}")
+                                e.printStackTrace()
                             }
                         }
                     }) {
@@ -177,6 +185,7 @@ fun UserManagementScreen() {
                             Text("Tambah User")
                         }
                     }
+
                 },
                 dismissButton = {
                     Button(onClick = { showAddUser = false }) {
