@@ -20,3 +20,7 @@ data class GroupResponse(
 data class TaskResponse(
     val data: List<Task>
 )
+
+data class LoginResponse(
+    val data: User
+)

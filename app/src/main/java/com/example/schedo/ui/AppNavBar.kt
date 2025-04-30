@@ -17,14 +17,13 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
-import com.example.schedo.ui.theme.UserManagementScreen
-import kotlinx.coroutines.launch
+
 
 @Composable
 fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomNav = currentRoute !in listOf("OnLoad", "add_task/{userId}/{groupId}/{projectId}/{taskId}")
+    val showBottomNav = currentRoute !in listOf("login", "register", "OnLoad", "add_task/{userId}/{groupId}/{projectId}/{taskId}")
 
     Scaffold(
         bottomBar = {
@@ -33,9 +32,15 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = BottomNavItem.TODO.route,
+            startDestination = "login",
             modifier = Modifier.padding(paddingValues)
         ) {
+            composable("login") {
+                LoginScreen(navController)
+            }
+            composable("register") {
+                RegisterScreen(navController)
+            }
             composable(BottomNavItem.TODO.route) {
                 HomeScreen(navController)
             }
@@ -58,7 +63,6 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
 
                 val coroutineScope = rememberCoroutineScope()
 
-                // Muat tugas jika dalam mode edit
                 LaunchedEffect(key1 = projectId) {
                     isLoading = true
                     if (projectId != -1) {

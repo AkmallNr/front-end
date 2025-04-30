@@ -4,13 +4,18 @@ import com.example.schedo.model.User
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
+import com.example.schedo.model.UserListResponse
 import com.example.schedo.response.*
 import retrofit2.Response
 import retrofit2.http.*
 
 interface ApiService {
+    // Endpoint register baru
+    @POST("register")
+    suspend fun registerUser(@Body user: Map<String, String>): Response<User>
+
     @GET("users")
-    suspend fun getUsers(): UserResponse
+    suspend fun getUsers(): Response<UserListResponse>
 
     // 🔹 Endpoint baru: Mendapatkan semua proyek berdasarkan userId
     @GET("users/{userId}/projects")
@@ -25,11 +30,14 @@ interface ApiService {
         @Path("groupId") groupId: Int
     ): ProjectResponse
 
-    @POST("users")
-    suspend fun createUser(@Body user: User): Response<User>
+//    @POST("users")
+//    suspend fun createUser(@Body user: User): Response<User>
 
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)
+
+    @POST("login")
+    suspend fun loginUser(@Body credentials: Map<String, String>): Response<LoginResponse>
 
     @GET("users/{userId}/groups")
     suspend fun getGroups(

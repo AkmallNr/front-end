@@ -1,11 +1,9 @@
 package com.example.schedo.model
 
 data class User(
-    val id: Int? = null,
+    val id: Int,
     val name: String,
     val email: String,
-    val pass: String,
-    val groups: List<Group> = emptyList() // Tambahkan field groups
+    val groups: List<Group> // karena groups kosong, buat dulu Any, nanti bisa disesuaikan
 )
-
 
