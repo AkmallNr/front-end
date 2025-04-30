@@ -17,13 +17,20 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
-
+import com.example.schedo.util.PreferencesHelper
 
 @Composable
-fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
+fun AppNavHost(navController: NavHostController, groupId: Int = -1, projectId: Int = -1) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomNav = currentRoute !in listOf("login", "register", "OnLoad", "add_task/{userId}/{groupId}/{projectId}/{taskId}")
+    val showBottomNav = currentRoute !in listOf(
+        "login",
+        "register",
+        "OnLoad",
+        "add_task/{userId}/{groupId}/{projectId}/{taskId}",
+        "add_todo/{userId}/{groupId}/{projectId}",
+        "new_project/{userId}/{groupId}/{projectId}"
+    )
 
     Scaffold(
         bottomBar = {
@@ -53,8 +60,8 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
-                val receivedUserId = args?.getInt("userId") ?: userId
-                val receivedGroupId = args?.getInt("groupId") ?: groupId
+                val receivedUserId = args?.getInt("userId") ?: -1
+                val receivedGroupId = args?.getInt("groupId") ?: -1
                 val projectId = args?.getInt("projectId") ?: -1
 
                 var group by remember { mutableStateOf<List<Group>?>(null) }
@@ -81,7 +88,13 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                         CircularProgressIndicator()
                     }
                 } else {
-                    AddTodoScreen(navController = navController, projectId = if (projectId != -1) projectId else null, project = project, receivedGroupId, receivedUserId )
+                    AddTodoScreen(
+                        navController = navController,
+                        projectId = if (projectId != -1) projectId else null,
+                        project = project,
+                        groupId = receivedGroupId,
+                        userId = receivedUserId
+                    )
                 }
             }
             composable(
@@ -94,9 +107,8 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
-
-                val receivedUserId = args?.getInt("userId") ?: userId
-                val receivedGroupId = args?.getInt("groupId") ?: groupId
+                val receivedUserId = args?.getInt("userId") ?: -1
+                val receivedGroupId = args?.getInt("groupId") ?: -1
                 val receivedProjectId = args?.getInt("projectId") ?: 0
                 val taskId = args?.getInt("taskId") ?: -1
 
@@ -137,11 +149,25 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                     )
                 }
             }
-            composable(BottomNavItem.JADWAL.route) {
-                ScheduleScreen(navController, userId, groupId, projectId)
+            composable(
+                BottomNavItem.JADWAL.route,
+                arguments = listOf(
+                    navArgument("groupId") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("projectId") { type = NavType.IntType; defaultValue = -1 }
+                )
+            ) { backStackEntry ->
+                val args = backStackEntry.arguments
+                val receivedGroupId = args?.getInt("groupId") ?: -1
+                val receivedProjectId = args?.getInt("projectId") ?: -1
+
+                ScheduleScreen(
+                    navController = navController,
+                    groupId = receivedGroupId,
+                    projectId = receivedProjectId
+                )
             }
             composable(
-                "new_project/{userId}",
+                "new_project/{userId}/{groupId}/{projectId}",
                 arguments = listOf(
                     navArgument("userId") { type = NavType.IntType },
                     navArgument("groupId") { type = NavType.IntType; defaultValue = -1 },
@@ -149,13 +175,19 @@ fun AppNavHost(navController: NavHostController, userId: Int, groupId: Int, proj
                 )
             ) { backStackEntry ->
                 val args = backStackEntry.arguments
-                val receivedUserId = args?.getInt("userId") ?: userId
+                val receivedUserId = args?.getInt("userId") ?: -1
                 val receivedGroupId = args?.getInt("groupId") ?: -1
                 val projectId = args?.getInt("projectId") ?: -1
 
                 var project by remember { mutableStateOf<Project?>(null) }
 
-                AddTodoScreen(navController = navController, projectId = if (projectId != -1) projectId else null, project = project, groupId = if (receivedGroupId != -1) receivedGroupId else null, receivedUserId )
+                AddTodoScreen(
+                    navController = navController,
+                    projectId = if (projectId != -1) projectId else null,
+                    project = project,
+                    groupId = if (receivedGroupId != -1) receivedGroupId else null,
+                    userId = receivedUserId
+                )
             }
             composable(BottomNavItem.POMODORO.route) {
                 PomodoroScreen(navController)

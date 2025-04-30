@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.SnackbarDefaults.backgroundColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -27,17 +28,31 @@ import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import com.example.schedo.util.PreferencesHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController, userId: Int, groupId: Int, projectId: Int) {
-    var selectedTab by remember { mutableStateOf(0) } // Default to Schedule tab
+fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: Int) {
+    val context = LocalContext.current
+    val preferencesHelper = PreferencesHelper(context)
+    val userId = preferencesHelper.getUserId()
+
+    if (userId == -1) {
+        LaunchedEffect(Unit) {
+            Toast.makeText(context, "Silakan login terlebih dahulu", Toast.LENGTH_LONG).show()
+            navController.navigate("login")
+        }
+        return
+    }
+
+    var selectedTab by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     val groups = remember { mutableStateListOf<Group>() }
+    var selectedGroupId by remember { mutableStateOf(groupId) }
 
     val backgroundColor = Color(0xFFFFFBEB)
     val selectedTabColor = Color(0xFFFFC278)
@@ -283,41 +298,41 @@ fun ProjectContentWithData(
                     )
                 ) {
                     Row(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Text(
-                            text = project.name ?: "Tanpa Nama",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                    }
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = project.name ?: "Tanpa Nama",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                        }
 
-                    IconButton(onClick = { onEditClick(project) }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit Project",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        IconButton(onClick = { onEditClick(project) }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Project",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                }
                 }
             }
         }

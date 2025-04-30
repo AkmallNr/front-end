@@ -1,5 +1,6 @@
 package com.example.schedo.ui
 
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -16,12 +17,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.util.PreferencesHelper
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
 import compose.icons.fontawesomeicons.solid.Clock
@@ -29,13 +32,17 @@ import compose.icons.fontawesomeicons.solid.Male
 
 enum class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     TODO("Home", "Home", Icons.Outlined.Home),
-    JADWAL("Jadwal", "Jadwal", Icons.Outlined.DateRange),
+    JADWAL("jadwal?groupId={groupId}&projectId={projectId}", "Jadwal", Icons.Outlined.DateRange),
     POMODORO("Pomodoro", "Pomodoro", FontAwesomeIcons.Solid.Clock),
     PROFILE("Profile", "Profile", FontAwesomeIcons.Solid.Male)
 }
 
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
+    val context = LocalContext.current
+    val preferencesHelper = PreferencesHelper(context)
+    val userId = preferencesHelper.getUserId() // Ambil userId dari PreferencesHelper
+
     val items = listOf(BottomNavItem.TODO, BottomNavItem.JADWAL, BottomNavItem.POMODORO, BottomNavItem.PROFILE)
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
@@ -52,7 +59,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, // Ganti ke SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Ikon 1: Home
@@ -79,14 +86,14 @@ fun BottomNavigationBar(navController: NavHostController) {
                 }
 
                 // Ikon 2: Jadwal
-                val selected2 = currentRoute == items[1].route
+                val selected2 = currentRoute?.startsWith("jadwal") == true
                 val animatedSize2 by animateFloatAsState(
                     targetValue = if (selected2) 1.2f else 1.0f,
                     animationSpec = spring()
                 )
                 IconButton(onClick = {
                     if (currentRoute != items[1].route) {
-                        navController.navigate(items[1].route) {
+                        navController.navigate("jadwal?groupId=-1&projectId=-1") {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -154,7 +161,17 @@ fun BottomNavigationBar(navController: NavHostController) {
 
         FloatingActionButton(
             onClick = {
-                navController.navigate("new_project/1")
+                if (userId == -1) {
+                    Toast.makeText(context, "Silakan login terlebih dahulu", Toast.LENGTH_LONG).show()
+                    navController.navigate("login")
+                } else {
+                    try {
+                        navController.navigate("new_project/$userId/-1/-1")
+                    } catch (e: IllegalArgumentException) {
+                        println("Navigation error: ${e.message}")
+                        Toast.makeText(context, "Gagal navigasi ke tambah proyek", Toast.LENGTH_LONG).show()
+                    }
+                }
             },
             modifier = Modifier
                 .size(64.dp)
