@@ -20,7 +20,12 @@ import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
 
 @Composable
-fun AppNavHost(navController: NavHostController, groupId: Int = -1, projectId: Int = -1) {
+fun AppNavHost(
+    navController: NavHostController,
+    groupId: Int = -1,
+    projectId: Int = -1,
+    startDestination: String = "login" // Tambahkan parameter startDestination
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomNav = currentRoute !in listOf(
@@ -39,7 +44,7 @@ fun AppNavHost(navController: NavHostController, groupId: Int = -1, projectId: I
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = "login",
+            startDestination = startDestination, // Gunakan startDestination dari parameter
             modifier = Modifier.padding(paddingValues)
         ) {
             composable("login") {

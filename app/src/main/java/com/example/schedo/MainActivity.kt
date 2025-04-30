@@ -16,18 +16,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberNavController()
-            val preferencesHelper = PreferencesHelper(this) // Inisialisasi PreferencesHelper
-            var groupId by remember { mutableStateOf(-1) } // Nilai default
-            var projectId by remember { mutableStateOf(-1) } // Nilai default
+            val preferencesHelper = PreferencesHelper(this)
+            val userId = preferencesHelper.getUserId()
+            var groupId by remember { mutableStateOf(-1) }
+            var projectId by remember { mutableStateOf(-1) }
 
-            // Logika untuk mengatur groupId dan projectId (misalnya dari sesi atau navigasi)
-            // groupId = getGroupIdFromSession()
-            // projectId = getProjectIdFromSession()
+            val startDestination = if (userId != -1) "Home" else "login"
 
             AppNavHost(
                 navController = navController,
                 groupId = groupId,
-                projectId = projectId
+                projectId = projectId,
+                startDestination = startDestination
             )
         }
     }
