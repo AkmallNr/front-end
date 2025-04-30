@@ -68,14 +68,6 @@ fun HomeScreen(navController: NavHostController) {
     }
 
     Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("add_todo") },
-                containerColor = Color(0xFF673AB7)
-            ) {
-                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
