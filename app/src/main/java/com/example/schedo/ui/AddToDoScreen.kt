@@ -46,7 +46,7 @@ fun AddTodoScreen(
     val context = LocalContext.current
     val preferencesHelper = remember { PreferencesHelper(context) }
     val currentUserId = userId ?: preferencesHelper.getUserId() // Gunakan userId dari SharedPreferences jika tidak ada parameter
-    var group by remember { mutableStateOf<List<Group>>(emptyList()) }
+    var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var selectedGroup by remember { mutableStateOf<Group?>(null) }
     var projectName by remember { mutableStateOf(project?.name ?: "") }
     var description by remember { mutableStateOf(project?.description ?: "") }
@@ -61,9 +61,9 @@ fun AddTodoScreen(
     var showSuccessDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(group, groupId) {
-        if (group.isNotEmpty() && groupId != null) {
-            selectedGroup = group.find { it.id == groupId }
+    LaunchedEffect(groups, groupId) {
+        if (groups.isNotEmpty() && groupId != null) {
+            selectedGroup = groups.find { it.id == groupId }
         }
     }
 
@@ -100,8 +100,8 @@ fun AddTodoScreen(
         coroutineScope.launch {
             try {
                 val response = RetrofitInstance.api.getGroups(currentUserId)
-                group = response.data ?: emptyList()
-                println("Fetched groups: $group")
+                groups = response.data ?: emptyList()
+                println("Fetched groups: $groups")
             } catch (e: Exception) {
                 e.printStackTrace()
                 errorMessage = "Error fetching groups: ${e.message}"
@@ -156,7 +156,7 @@ fun AddTodoScreen(
                 val response = if (projectId == null) {
                     RetrofitInstance.api.addProjectToGroup(userIdToSave, groupIdToSave, projectData)
                 } else {
-                    RetrofitInstance.api.updateProject(userIdToSave, groupIdToSave, projectId!!, projectData)
+                    RetrofitInstance.api.updateProject(userIdToSave, groupIdToSave, projectId, projectData)
                 }
                 if (response.isSuccessful) {
                     println("Project saved successfully!")
@@ -252,16 +252,23 @@ fun AddTodoScreen(
 
             CardField(
                 user = user,
-                groups = group,
+                groups = groups,
                 label = "Task Group",
                 value = selectedGroup,
                 onAddTaskGroup = { name ->
                     coroutineScope.launch {
                         try {
                             if (name.isNotEmpty()) {
-                                user.id.let { fetchUsers() }
+                                // Tambahkan implementasi untuk menambahkan grup
+                                val groupRequest = GroupRequest(name = name, icon = "fas fa-users")
+                                val response = RetrofitInstance.api.addGroupToUser(user.id, groupRequest)
+                                if (response.isSuccessful) {
+                                    fetchGroups() // Refresh grup setelah menambahkan
+                                } else {
+                                    errorMessage = "Gagal menambahkan grup: ${response.errorBody()?.string()}"
+                                }
                             } else {
-                                errorMessage = "Nama Grup tidak boleh kosong: $name"
+                                errorMessage = "Nama Grup tidak boleh kosong"
                                 println("Nama Grup tidak boleh kosong: $name")
                             }
                         } catch (e: Exception) {
@@ -279,7 +286,7 @@ fun AddTodoScreen(
 
             CardField(
                 user = user,
-                groups = group,
+                groups = groups,
                 label = "Project Name",
                 value = projectName,
                 onAddTaskGroup = { /* Tidak digunakan */ },
@@ -291,7 +298,7 @@ fun AddTodoScreen(
 
             CardField(
                 user = user,
-                groups = group,
+                groups = groups,
                 label = "Description",
                 value = description,
                 onAddTaskGroup = { /* Tidak digunakan */ },
@@ -304,7 +311,7 @@ fun AddTodoScreen(
 
             CardField(
                 user = user,
-                groups = group,
+                groups = groups,
                 label = "Start Date",
                 value = startDate,
                 onAddTaskGroup = { /* Tidak digunakan */ },
@@ -317,7 +324,7 @@ fun AddTodoScreen(
 
             CardField(
                 user = user,
-                groups = group,
+                groups = groups,
                 label = "End Date",
                 value = endDate,
                 onAddTaskGroup = { /* Tidak digunakan */ },
@@ -524,15 +531,19 @@ fun <T> CardField(
                                         currentOnAddGroup.value(name)
                                         onGroupsUpdated()
                                         showAddDialog = false
+                                        name = "" // Reset field
                                     } else {
                                         val errorBody = response.errorBody()?.string()
                                         Log.e("Retrofit Error", "Error: $errorBody")
+                                        errorMessage = "Gagal menambahkan grup: $errorBody"
                                     }
                                 }
                             } catch (e: HttpException) {
                                 Log.e("HttpException", "Error body: ${e.response()?.errorBody()?.string()}")
+                                errorMessage = "HTTP Error: ${e.message}"
                             } catch (e: Exception) {
                                 Log.e("Exception", "Error tak terduga: ${e.message}")
+                                errorMessage = "Error: ${e.message}"
                             } finally {
                                 isLoading = false
                             }

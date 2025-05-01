@@ -4,6 +4,7 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.User
+import com.google.gson.annotations.SerializedName
 
 data class UserResponse(
     val data: List<User>
@@ -22,5 +23,11 @@ data class TaskResponse(
 )
 
 data class LoginResponse(
+    val data: User
+)
+
+
+data class UserResponse2(
+    @SerializedName("data")
     val data: User
 )

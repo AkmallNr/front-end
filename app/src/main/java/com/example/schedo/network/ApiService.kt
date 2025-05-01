@@ -6,6 +6,7 @@ import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.UserListResponse
 import com.example.schedo.response.*
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -109,6 +110,13 @@ interface ApiService {
         @Path("projectId") projectId: Int,
         @Path("taskId") taskId: Int
     )
+
+    @Multipart
+    @POST("users/{userId}/profile-picture")
+    suspend fun updateProfilePicture(
+        @Path("userId") userId: Int,
+        @Part profilePicture: MultipartBody.Part
+    ): Response<UserResponse2>
 }
 
 data class GroupRequest(
