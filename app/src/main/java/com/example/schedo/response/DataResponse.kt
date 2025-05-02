@@ -26,7 +26,6 @@ data class LoginResponse(
     val data: User
 )
 
-
 data class UserResponse2(
     @SerializedName("data")
     val data: User

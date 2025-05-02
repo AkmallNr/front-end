@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
@@ -74,12 +75,14 @@ fun UserManagementScreen() {
                     if (response.isSuccessful) {
                         // Ambil data pengguna dari UserResponse
                         val updatedUser = response.body()?.data
+                        Log.d("Upload", "Profile picture uploaded: ${updatedUser?.profile_picture}")
+
                         if (updatedUser != null) {
                             user = updatedUser
                             Log.d("UserManagementScreen", "Upload successful, updated user: $user")
 
                             // If profile picture is still null, we need to refresh user data
-                            if (updatedUser.profilePicture == null) {
+                            if (updatedUser.profile_picture == null) {
                                 Log.d("UserManagementScreen", "Profile picture still null, will refresh user data")
                                 shouldRefreshUserData = true
                                 // Give the server some time to process the image
@@ -182,10 +185,15 @@ fun UserManagementScreen() {
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    // Display profile picture
-                    if (!user?.profilePicture.isNullOrEmpty()) {
+                    if (!user?.profile_picture.isNullOrBlank()) {
+                        println("url pp: ${user?.profile_picture}")
                         Image(
-                            painter = rememberAsyncImagePainter(user?.profilePicture),
+                            painter = rememberAsyncImagePainter(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(user?.profile_picture)
+                                    .crossfade(true)
+                                    .build()
+                            ),
                             contentDescription = "Profile Picture",
                             modifier = Modifier
                                 .size(100.dp)
@@ -198,6 +206,7 @@ fun UserManagementScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
                     Spacer(modifier = Modifier.height(8.dp))
                     // Button to upload profile picture
                     Button(
