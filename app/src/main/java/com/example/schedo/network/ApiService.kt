@@ -3,6 +3,7 @@ package com.example.schedo.network
 import com.example.schedo.model.User
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.model.UserListResponse
 import com.example.schedo.response.*
@@ -117,11 +118,60 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Part profilePicture: MultipartBody.Part
     ): Response<UserResponse2>
+
+    @GET("users/{userId}/quotes")
+    suspend fun getQuotes(
+        @Path("userId") userId: Int
+    ): QuoteResponse
+
+    @POST("users/{userId}/quotes")
+    suspend fun addQuotes(
+        @Path("userId") userId: Int,
+        @Body quoteRequest : QuoteRequest
+    )
+
+    @GET("users/{userId}/schedules")
+    suspend fun getSchedules(
+        @Path("userId") userId: Int
+    ): ScheduleResponse
+
+    @POST("users/{userId}/schedules")
+    suspend fun addSchedule(
+        @Path("userId") userId: Int,
+        @Body scheduleRequest: ScheduleRequest
+    )
+
+    @PUT("users/{userId}/schedules/{scheduleId}")
+    suspend fun updateSchedule(
+        @Path("userId") userId: Int,
+        @Path("scheduleId") id: Int,
+        @Body scheduleRequest: ScheduleRequest
+    ): Response<ScheduleResponse>
+
+    @DELETE("users/{userId}/schedules/{scheduleId}")
+    suspend fun deleteSchedule(
+        @Path("userId") userId: Int,
+        @Path("scheduleId") id: Int
+    )
+
 }
+
+data class ScheduleRequest(
+    val name: String,
+    val notes: String,
+    val repeat: Boolean,
+    val day: String,
+    val startTime: String,
+    val endTime: String
+)
 
 data class GroupRequest(
     val name: String,
     val icon: String
+)
+
+data class QuoteRequest(
+    val content: String
 )
 
 data class ProjectRequest(
@@ -139,5 +189,6 @@ data class TaskRequest(
     val reminder: String? = null,
     val priority: String,
     val attachment: List<String>? = null,
-    val status: Boolean? = null
+    val status: Boolean? = null,
+    val quoteId: Int? = null
 )

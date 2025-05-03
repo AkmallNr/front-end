@@ -18,17 +18,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import com.example.schedo.util.PreferencesHelper
+import java.time.LocalDate
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,7 +159,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 }
 
                 Text(
-                    text = if (selectedTab == 0) "All Project" else "All Schedule",
+                    text = if (selectedTab == 0) "All Project" else "Schedule",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
@@ -192,6 +196,98 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     selectedProject!!,
                     userId,
                     groupId = selectedProject!!.groupId)
+            }
+        }
+    }
+}
+
+@Composable
+fun ScheduleTab(
+    modifier: Modifier = Modifier,
+    schedules: List<Schedule>,
+    onAddClick: () -> Unit,
+    onEditClick: (Schedule) -> Unit,
+    onDeleteClick: (Schedule) -> Unit,
+    currentWeek: List<LocalDate>,
+    onPrevWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    selectedMonth: String,
+    onMonthChange: (String) -> Unit
+) {
+    Column(modifier = modifier.padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Button(onClick = onPrevWeek) {
+                Text("< Minggu Sebelumnya")
+            }
+            DropdownMenuBox(selectedMonth, onMonthChange)
+            Button(onClick = onNextWeek) {
+                Text("Minggu Berikutnya >")
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            currentWeek.forEach { date ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("id")))
+                    Text(text = date.dayOfMonth.toString())
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        LazyColumn {
+            items(schedules) { schedule ->
+                ScheduleItem(schedule, onEditClick, onDeleteClick)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onAddClick,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("Tambah Jadwal")
+        }
+    }
+}
+
+@Composable
+fun ScheduleItem(
+    schedule: Schedule,
+    onEditClick: (Schedule) -> Unit,
+    onDeleteClick: (Schedule) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(Modifier.padding(8.dp)) {
+            Text(text = schedule.name, fontWeight = FontWeight.Bold)
+            Text(text = schedule.notes)
+            Text(text = "${schedule.startTime} - ${schedule.endTime}")
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(onClick = { onEditClick(schedule) }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                }
+                IconButton(onClick = { onDeleteClick(schedule) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                }
             }
         }
     }

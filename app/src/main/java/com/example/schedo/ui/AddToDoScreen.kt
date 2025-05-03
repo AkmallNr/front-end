@@ -248,7 +248,7 @@ fun AddTodoScreen(
                 )
             }
 
-            val user = users.find { it.id == currentUserId } ?: User(currentUserId, "Default Name", "default@example.com", emptyList())
+            val user = users.find { it.id == currentUserId } ?: User(currentUserId, "Default Name", "default@example.com", emptyList(), emptyList())
 
             CardField(
                 user = user,
