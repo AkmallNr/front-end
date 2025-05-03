@@ -31,9 +31,6 @@ interface ApiService {
         @Path("groupId") groupId: Int
     ): ProjectResponse
 
-//    @POST("users")
-//    suspend fun createUser(@Body user: User): Response<User>
-
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)
 
@@ -117,6 +114,13 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Part profilePicture: MultipartBody.Part
     ): Response<UserResponse2>
+
+    // 🔹 Endpoint baru: Login dengan Google
+    @POST("users/{userId}/google-login")
+    suspend fun loginWithGoogle(
+        @Path("userId") userId: Int,
+        @Body token: Map<String, String?>
+    ): Response<User>
 }
 
 data class GroupRequest(
