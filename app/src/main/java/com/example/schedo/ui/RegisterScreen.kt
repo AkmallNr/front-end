@@ -6,11 +6,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Utama2
 import kotlinx.coroutines.launch
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -148,7 +153,8 @@ fun RegisterScreen(navController: NavHostController) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -160,11 +166,21 @@ fun RegisterScreen(navController: NavHostController) {
                 }
             }
 
+            //text already have an account
             TextButton(
                 onClick = { navController.navigate("login") }
+//                enabled = !isLoading
             ) {
-                Text("Already have an account? Login")
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("Already have an account?")
+                    }
+                    withStyle(style = SpanStyle(color = Utama2)){
+                        append("Login")
+                    }
+                })
             }
+
         }
     }
 }

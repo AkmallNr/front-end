@@ -9,11 +9,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
+import com.example.schedo.ui.*
+import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
+import com.example.schedo.ui.theme.Utama1
+import com.example.schedo.ui.theme.Utama2
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -209,7 +218,8 @@ fun LoginScreen(navController: NavHostController) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -217,8 +227,30 @@ fun LoginScreen(navController: NavHostController) {
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Login")
+                    Text("Continue")
                 }
+            }
+
+            //button forgot password
+            Button(
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Grey2, contentColor = Utama2)
+            ) { Text("Forgot Password")}
+
+            //text dont have account
+            TextButton(
+                onClick = { navController.navigate("register") },
+                enabled = !isLoading
+            ) {
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("Dont have an account?")
+                    }
+                    withStyle(style = SpanStyle(color = Utama2)){
+                        append("Sign up")
+                    }
+                })
             }
 
             // Tombol Sign in with Google
@@ -230,7 +262,7 @@ fun LoginScreen(navController: NavHostController) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    containerColor = Grey2,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
@@ -244,12 +276,10 @@ fun LoginScreen(navController: NavHostController) {
                 }
             }
 
-            TextButton(
-                onClick = { navController.navigate("register") },
-                enabled = !isLoading
-            ) {
-                Text("Don't have an account? Register")
-            }
+
+            Text(text = "By Continuing I Agree with Privacy Policy and Terms & Conditions", modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally))
+
+
         }
     }
 }
