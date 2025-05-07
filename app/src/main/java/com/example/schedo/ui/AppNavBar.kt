@@ -13,9 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
-import com.example.schedo.model.Group
-import com.example.schedo.model.Project
-import com.example.schedo.model.Task
+import com.example.schedo.model.*
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
 
@@ -116,7 +114,7 @@ fun AppNavHost(
                 val receivedGroupId = args?.getInt("groupId") ?: -1
                 val receivedProjectId = args?.getInt("projectId") ?: 0
                 val taskId = args?.getInt("taskId") ?: -1
-
+                var quote by remember { mutableStateOf<Quote?>(null) }
                 var task by remember { mutableStateOf<Task?>(null) }
                 var isLoading by remember { mutableStateOf(true) }
 
@@ -150,7 +148,8 @@ fun AppNavHost(
                         groupId = receivedGroupId,
                         projectId = receivedProjectId,
                         taskId = if (taskId != -1) taskId else null,
-                        task = task
+                        task = task,
+                        quote = quote
                     )
                 }
             }

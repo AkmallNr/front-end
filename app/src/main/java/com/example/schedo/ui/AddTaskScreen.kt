@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.R
+import com.example.schedo.model.Quote
 import com.example.schedo.model.Task
+import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
@@ -178,7 +180,8 @@ fun AddTaskScreen(
     groupId: Int,
     projectId: Int,
     taskId: Int? = null,
-    task: Task? = null
+    task: Task? = null,
+    quote: Quote? = null
 ) {
     android.util.Log.d("AddTaskScreen", "Received taskId: $taskId, isNull: ${taskId == null}")
     val context = LocalContext.current
@@ -187,6 +190,7 @@ fun AddTaskScreen(
     var reminder by remember { mutableStateOf(task?.reminder ?: "Tidak") }
     var priority by remember { mutableStateOf(task?.priority ?: "Normal") }
     var attachmentList by remember { mutableStateOf<List<Pair<String, Uri>>?>(null) }
+    var selectedQuote by remember { mutableStateOf(quote) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
     var showDeadlineDatePicker by remember { mutableStateOf(false) }
@@ -194,6 +198,11 @@ fun AddTaskScreen(
     var showReminderDatePicker by remember { mutableStateOf(false) }
     var showReminderTimePicker by remember { mutableStateOf(false) }
     var showPriorityDropdown by remember { mutableStateOf(false) }
+    var showQuoteDropdown by remember { mutableStateOf(false) }
+    var showAddQuoteDialog by remember { mutableStateOf(false) }
+
+    var quotes by remember { mutableStateOf<List<Quote>>(emptyList()) }
+    var isLoadingQuotes by remember { mutableStateOf(true) }
 
     var selectedDeadlineDate by remember {
         mutableStateOf(
@@ -223,6 +232,58 @@ fun AddTaskScreen(
     }
 
     val scope = rememberCoroutineScope()
+
+    // Fetch quotes when screen is displayed
+    LaunchedEffect(userId) {
+        isLoadingQuotes = true
+        try {
+            val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
+            quotes = quoteResponse
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Show error toast
+            Toast.makeText(
+                context,
+                "Gagal memuat quotes: ${e.localizedMessage}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        isLoadingQuotes = false
+    }
+
+    // Dialog untuk menambahkan quote baru
+    if (showAddQuoteDialog) {
+        AddQuoteDialog(
+            onDismiss = { showAddQuoteDialog = false },
+            onAddQuote = { content ->
+                scope.launch {
+                    try {
+                        RetrofitInstance.api.addQuotes(
+                            userId = userId,
+                            quoteRequest = QuoteRequest(content = content)
+                        )
+
+                        // Refresh quotes list
+                        val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
+                        quotes = quoteResponse
+
+                        Toast.makeText(
+                            context,
+                            "Quote berhasil ditambahkan!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        Toast.makeText(
+                            context,
+                            "Gagal menambahkan quote: ${e.localizedMessage}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        )
+    }
 
     // ID folder untuk "image" dan "pdf" di Google Drive
     val imageFolderId = "1CVmSom-5q4DW5_WtHChVLq7JthcwQR7h" // Ganti dengan ID folder "image"
@@ -290,13 +351,7 @@ fun AddTaskScreen(
                     }
                 )
 
-                PrioritySection(
-                    priority = priority,
-                    options = priorityOptions,
-                    showDropdown = showPriorityDropdown,
-                    onShowDropdownChange = { showPriorityDropdown = it },
-                    onPrioritySelected = { priority = it }
-                )
+
 
                 if (note.isEmpty()) {
                     EnhancedTaskOptionRow(
@@ -321,6 +376,35 @@ fun AddTaskScreen(
                 if (!attachmentList.isNullOrEmpty()) {
                     val displayAttachments = attachmentList!!.map { it.first to it.second.toString() }
                     AttachmentSection(attachmentList = displayAttachments, onClick = { showAttachmentDialog = true })
+                }
+
+                PrioritySection(
+                    priority = priority,
+                    options = priorityOptions,
+                    showDropdown = showPriorityDropdown,
+                    onShowDropdownChange = { showPriorityDropdown = it },
+                    onPrioritySelected = { priority = it }
+                )
+
+                // Add Quote section here after Priority
+                if (isLoadingQuotes) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                } else {
+                    QuoteSection(
+                        selectedQuote = selectedQuote,
+                        quotes = quotes,
+                        showDropdown = showQuoteDropdown,
+                        onShowDropdownChange = { showQuoteDropdown = it },
+                        onQuoteSelected = { selectedQuote = it },
+                        onAddNewQuoteClick = { showAddQuoteDialog = true }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
@@ -380,7 +464,8 @@ fun AddTaskScreen(
                                 reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
                                 priority = priority,
                                 attachment = uploadedAttachments,
-                                status = false
+                                status = false,
+                                quoteId = selectedQuote?.id
                             )
 
 
@@ -568,6 +653,118 @@ fun AddTaskScreen(
                     context = context
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun QuoteSection(
+    selectedQuote: Quote?,
+    quotes: List<Quote>,
+    showDropdown: Boolean,
+    onShowDropdownChange: (Boolean) -> Unit,
+    onQuoteSelected: (Quote) -> Unit,
+    onAddNewQuoteClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .clickable { onShowDropdownChange(true) }
+                .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote")
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Quote Motivasi",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Text(
+                            text = selectedQuote?.content ?: "Pilih Quote",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = "Dropdown"
+                    )
+                }
+            }
+        }
+        DropdownMenu(
+            expanded = showDropdown,
+            onDismissRequest = { onShowDropdownChange(false) },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .widthIn(max = 300.dp)
+        ) {
+            quotes.forEach { quote ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = quote.content.take(40).let { if (it.length == 40) "$it..." else it },
+                            fontSize = 16.sp
+                        )
+                    },
+                    onClick = {
+                        onQuoteSelected(quote)
+                        onShowDropdownChange(false)
+                    }
+                )
+            }
+
+            Divider()
+
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add New Quote"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Tambah Quote Baru",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                },
+                onClick = {
+                    onAddNewQuoteClick()
+                    onShowDropdownChange(false)
+                }
+            )
         }
     }
 }
@@ -777,6 +974,51 @@ fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () ->
             thickness = 1.dp
         )
     }
+}
+
+@Composable
+fun AddQuoteDialog(
+    onDismiss: () -> Unit,
+    onAddQuote: (String) -> Unit
+) {
+    var quoteContent by remember { mutableStateOf(TextFieldValue("")) }
+
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tambah Quote Baru") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = quoteContent,
+                    onValueChange = { quoteContent = it },
+                    label = { Text("Isi Quote") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    maxLines = 5
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (quoteContent.text.isNotBlank()) {
+                        onAddQuote(quoteContent.text)
+                        onDismiss()
+                    }
+                },
+                enabled = quoteContent.text.isNotBlank()
+            ) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }
 
 @Composable
@@ -1060,6 +1302,8 @@ fun AttachmentDialogContent(
         }
     )
 }
+
+
 
 private fun getMimeType(url: String): String? {
     val extension = url.substringAfterLast(".", "").lowercase()
