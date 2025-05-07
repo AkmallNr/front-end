@@ -132,27 +132,29 @@ interface ApiService {
 
     @GET("users/{userId}/schedules")
     suspend fun getSchedules(
-        @Path("userId") userId: Int
+        @Path("userId") userId: Int,
+        @Query("startTime") startTime: Long
     ): ScheduleResponse
 
     @POST("users/{userId}/schedules")
     suspend fun addSchedule(
         @Path("userId") userId: Int,
-        @Body scheduleRequest: ScheduleRequest
+        @Body schedule: Schedule
     )
 
     @PUT("users/{userId}/schedules/{scheduleId}")
     suspend fun updateSchedule(
         @Path("userId") userId: Int,
-        @Path("scheduleId") id: Int,
-        @Body scheduleRequest: ScheduleRequest
-    ): Response<ScheduleResponse>
+        @Body schedule: Schedule
+    )
 
     @DELETE("users/{userId}/schedules/{scheduleId}")
     suspend fun deleteSchedule(
         @Path("userId") userId: Int,
-        @Path("scheduleId") id: Int
-    )
+        @Path("id") id: Int
+    ): Response<Unit>
+
+
 
 }
 
