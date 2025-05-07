@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,30 +22,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
+    val context = LocalContext.current
+    val preferencesHelper = remember { PreferencesHelper(context) }
+    val userId = preferencesHelper.getUserId().toInt()
     var users = remember { mutableStateListOf<User>() }
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
-
-
 
     fun fetchUsers() {
         coroutineScope.launch {
             isLoading = true
             try {
                 val response = RetrofitInstance.api.getUsers()
-                users.clear()
-                users.addAll(response)
-                println("Fetched users: $response")
+                if (response.isSuccessful) {
+                    val userList = response.body()?.data ?: emptyList() // Ambil data dari UserListResponse
+                    users.clear()
+                    users.addAll(userList)
+                    println("Fetched users: $userList")
+                    println("ini UserId : ${userId}")
+                } else {
+                    println("Failed to fetch users: ${response.errorBody()?.string()}")
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 println("Error fetching users: ${e.message}")
@@ -53,22 +63,12 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Memuat data saat pertama kali dibuka
     LaunchedEffect(Unit) {
         fetchUsers()
     }
 
     Scaffold(
-//        floatingActionButton = {
-//            FloatingActionButton(
-//                onClick = { navController.navigate("add_todo") },
-//                containerColor = MaterialTheme.colorScheme.primary
-//            ) {
-//                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-//            }
-//        }
-    )
-    { paddingValues ->
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -81,29 +81,48 @@ fun HomeScreen(navController: NavHostController) {
                 ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 🔹 Header Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    val groupName = "ngamprah plosok"
-                    val userInGroup = users.find { user ->
-                        user.groups.any { it.name.trim() == groupName.trim() }
-                    }?.name
+                    if (isLoading) {
+                        CircularProgressIndicator()
+                    } else {
+                        val user = users.find { it.id == userId }
 
-                    Text("Hello!", fontSize = 20.sp, color = Color.Gray)
-                    Text("${userInGroup}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("Hello!", fontSize = 20.sp, color = Color.Gray)
+                        if (user != null) {
+                            Text("${user.name}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("Guest", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-                Icon(
-                    imageVector = Icons.Filled.Notifications,
-                    contentDescription = "Notifications",
-                    modifier = Modifier.size(28.dp)
-                )
+                Row {
+                    IconButton(onClick = { /* Handle notifications */ }) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = "Notifications",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        preferencesHelper.clearUserId()
+                        navController.navigate("login") {
+                            popUpTo("home") { inclusive = true }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Logout",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
             }
 
-            // 🔹 Task Progress Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -124,7 +143,6 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
-            // 🔹 In Progress Section
             Text("In Progress", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -134,43 +152,40 @@ fun HomeScreen(navController: NavHostController) {
                 TaskCard("Personal Project", "Uber Eats redesign challenge", Color(0xFFFFCDD2), Color.Red)
             }
 
-            // 🔹 Task Groups Section
             Text("Task Groups", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 users.forEach { user ->
+                    if (user.id != userId) return@forEach // Hanya tampilkan data untuk user yang login
                     val group = user.groups.find { it.name == " ngamprah plosok" }
 
                     if (group == null) {
-                        Log.e("DEBUG", "Group 'Group Akmal' tidak ditemukan untuk user ${user.id}")
+                        Log.e("DEBUG", "Group 'ngamprah plosok' tidak ditemukan untuk user ${user.id}")
                         Log.d("DEBUG", "Total users: ${users.size}")
                         Log.d("DEBUG", "User ${user.id} memiliki grup: ${user.groups.map { it.name }}")
                     } else {
                         Log.d("DEBUG", "Group ditemukan: ${group.name}")
                     }
 
-                    val projects = group?.projects?.map { it } ?: emptyList()
+                    val projects = group?.projects.orEmpty()
 
                     if (projects.isEmpty()) {
                         Log.e("DEBUG", "Tidak ada proyek dalam grup '${group?.name}'")
                     } else {
                         projects.forEach { project ->
                             Log.d("DEBUG", "Project ditemukan: ${project.name}, Deskripsi: ${project.description}")
-
                             TaskGroupCard(
-                                project.name,
-                                project.description,
+                                project.name ?: "Unnamed Project",
+                                project.description ?: "No Description",
                                 { 0.7f },
                                 Color(0xFFFFC1E3)
                             )
                         }
                     }
                 }
-
             }
         }
     }
 }
-
 
 @Composable
 fun TaskCard(category: String, task: String, bgColor: Color, progressColor: Color) {
@@ -191,7 +206,6 @@ fun TaskCard(category: String, task: String, bgColor: Color, progressColor: Colo
     }
 }
 
-// 🔹 Task Group Component
 @Composable
 fun TaskGroupCard(title: String, taskCount: String, progress: () -> Float, progressColor: Color) {
     Card(

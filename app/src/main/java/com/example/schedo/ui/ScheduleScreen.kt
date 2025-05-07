@@ -1,43 +1,72 @@
 package com.example.schedo.ui
 
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.SnackbarDefaults.backgroundColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.network.TaskRequest
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import com.example.schedo.util.PreferencesHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(navController: NavHostController) {
+fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: Int) {
+    val context = LocalContext.current
+    val preferencesHelper = PreferencesHelper(context)
+    val userId = preferencesHelper.getUserId()
+
+    if (userId == -1) {
+        LaunchedEffect(Unit) {
+            Toast.makeText(context, "Silakan login terlebih dahulu", Toast.LENGTH_LONG).show()
+            navController.navigate("login")
+        }
+        return
+    }
+
     var selectedTab by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
     var selectedProject by remember { mutableStateOf<Project?>(null) }
+    val groups = remember { mutableStateListOf<Group>() }
+    var selectedGroupId by remember { mutableStateOf(groupId) }
 
-    fun fetchProjects() {
+    val backgroundColor = Color(0xFFFFFBEB)
+    val selectedTabColor = Color(0xFFFFC278)
+
+    fun fetchGroups() {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByGroup(userId = 1, groupId = 1)
-                projects.clear()
-                projects.addAll(response)
+                val response = apiService.getGroups(userId).data
+                groups.clear()
+                groups.addAll(response)
+                println("Groups fetched successfully: ${groups.size} groups for userId: $userId")
             } catch (e: Exception) {
+                println("Failed to fetch groups for userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -45,9 +74,33 @@ fun ScheduleScreen(navController: NavHostController) {
         }
     }
 
-    LaunchedEffect(key1 = selectedTab) {
-        if (selectedTab == 1 && projects.isEmpty()) {
-            fetchProjects()
+    fun fetchProjects() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = apiService.getProjectsByUser(userId).data
+                println("Raw API response for userId: $userId - $response") // Log respons mentah
+                projects.clear()
+                projects.addAll(response)
+                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
+                // Log detail setiap proyek
+                projects.forEach { project ->
+                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
+                }
+            } catch (e: Exception) {
+                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    LaunchedEffect(key1 = Unit) {
+        if (groups.isEmpty()) {
+            fetchGroups() // Ambil grup saat pertama kali dimuat
+        }
+        if (projects.isEmpty()) {
+            fetchProjects() // Ambil proyek saat pertama kali dimuat
         }
     }
 
@@ -65,95 +118,221 @@ fun ScheduleScreen(navController: NavHostController) {
                     }) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
             )
-        }
+        },
+        containerColor = backgroundColor
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .padding(paddingValues),
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onSurface
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
+                    TabButton(
+                        text = "Project",
+                        isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text("Jadwal Rutin") },
-                        icon = { Icon(Icons.Default.CalendarToday, contentDescription = "Jadwal Rutin") }
+                        modifier = Modifier.weight(1f),
+                        selectedColor = selectedTabColor
                     )
-                    Tab(
-                        selected = selectedTab == 1,
+                    TabButton(
+                        text = "Schedule",
+                        isSelected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        text = { Text("Proyek") },
-                        icon = { Icon(Icons.Default.Checklist, contentDescription = "Proyek") }
+                        modifier = Modifier.weight(1f),
+                        selectedColor = selectedTabColor
                     )
                 }
+
+                Text(
+                    text = if (selectedTab == 0) "All Project" else "All Schedule",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.CenterHorizontally)
+                )
+
                 when (selectedTab) {
-                    0 -> RoutineScheduleContent()
+                    0 -> ProjectContentWithData(
+                        onProjectClick = { project -> selectedProject = project },
+                        onEditClick = { project ->
+                            println("Edit clicked for poject ${project.id} group ${project.groupId}")
+                            navController.navigate("add_todo/$userId/${project.groupId}/${project.id}")
+                        },
+                        userId = userId,
+                        groupId = groupId
+                    )
                     1 -> {
-                        if (isLoading) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("Memuat proyek...")
-                            }
-                        } else {
-                            ProjectScheduleContent(projects, onProjectClick = { project ->
-                                selectedProject = project
-                            })
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Tidak ada jadwal",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.Gray
+                            )
                         }
                     }
                 }
             } else {
-                ProjectDetailScreen(navController, selectedProject!!)
+                ProjectDetailScreen(
+                    navController,
+                    selectedProject!!,
+                    userId,
+                    groupId = selectedProject!!.groupId)
             }
         }
     }
 }
 
 @Composable
-fun RoutineScheduleContent() {
+fun TabButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selectedColor: Color = Color(0xFFFFC278)
+) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier
+            .padding(4.dp)
+            .background(
+                color = if (isSelected) selectedColor else Color.Transparent,
+                shape = MaterialTheme.shapes.medium
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Halaman Jadwal Rutin",
-            style = MaterialTheme.typography.headlineMedium
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) Color.Black else Color.Gray
         )
     }
 }
 
 @Composable
-fun ProjectScheduleContent(projects: List<Project>, onProjectClick: (Project) -> Unit) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(projects) { project ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .clickable { onProjectClick(project) },
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = project.name ?: "Tanpa Nama", style = MaterialTheme.typography.bodyLarge)
-                    Text(text = "Start: ${project.startDate ?: "Tanpa Tanggal"}", style = MaterialTheme.typography.bodyMedium)
-                    Text(text = "End: ${project.endDate ?: "Tanpa Tanggal"}", style = MaterialTheme.typography.bodyMedium)
+fun ProjectContentWithData(
+    onProjectClick: (Project) -> Unit,
+    onEditClick: (Project) -> Unit, // Tambahkan callback edit
+    userId: Int,
+    groupId: Int
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val projects = remember { mutableStateListOf<Project>() }
+    var isLoading by remember { mutableStateOf(false) }
+    val apiService = RetrofitInstance.api
+
+    fun fetchProjects() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = apiService.getProjectsByUser(userId).data
+                println("Raw API response for userId: $userId - $response") // Log respons mentah
+                projects.clear()
+                projects.addAll(response)
+                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
+                // Log detail setiap proyek
+                projects.forEach { project ->
+                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
                 }
+            } catch (e: Exception) {
+                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
             }
         }
-        if (projects.isEmpty()) {
-            item {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Tidak ada proyek yang dibuat.")
+    }
+
+    LaunchedEffect(key1 = Unit) {
+        fetchProjects()
+    }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (projects.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = "Tidak ada proyek",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.Gray
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(projects) { project ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            // Log projectId dan groupId saat proyek diklik
+                            println("Project clicked - projectId: ${project.id}, groupId: ${project.groupId}, userId: $userId")
+                            onProjectClick(project) // Mengirim seluruh objek Project ke callback
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = project.name ?: "Tanpa Nama",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                        }
+
+                        IconButton(onClick = { onEditClick(project) }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Project",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -161,19 +340,304 @@ fun ProjectScheduleContent(projects: List<Project>, onProjectClick: (Project) ->
 }
 
 @Composable
-fun ProjectDetailScreen(navController: NavHostController, project: Project) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(text = "Detail Proyek", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "Nama: ${project.name}")
-        Text(text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}")
-        Text(text = "Mulai: ${project.startDate ?: "-"}")
-        Text(text = "Selesai: ${project.endDate ?: "-"}")
+fun ProjectDetailScreen(navController: NavHostController, project: Project, userId: Int, groupId: Int) {
+    val context = LocalContext.current
+    val projectId = project.id ?: 0
+    val coroutineScope = rememberCoroutineScope()
+    val tasks = remember { mutableStateListOf<Task>() }
+    var isLoading by remember { mutableStateOf(false) }
+    val backgroundColor = Color(0xFFFFFBEB)
+    val apiService = RetrofitInstance.api
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { navController.navigate("add_task") }) {
+    // Log untuk memverifikasi parameter saat komponen dimuat
+    LaunchedEffect(Unit) {
+        println("ProjectDetailScreen loaded with userId: $userId, groupId: $groupId, projectId: $projectId")
+    }
+
+    LaunchedEffect(key1 = projectId) {
+        isLoading = true
+        try {
+            val response = apiService.getTask(userId, groupId, projectId).data
+            tasks.clear()
+            tasks.addAll(response)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+        } finally {
+            isLoading = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .padding(bottom = 72.dp)
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = project.name ?: "Tanpa Nama",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = {
+                            // Log untuk memverifikasi nilai sebelum penghapusan
+                            println("Attempting to delete project with userId: $userId, groupId: $groupId, projectId: $projectId")
+                            coroutineScope.launch {
+                                try {
+                                    val response = apiService.deleteProject(userId, groupId, projectId)
+                                    if (response == Unit) { // Asumsi deleteProject mengembalikan Unit
+                                        navController.popBackStack()
+                                        Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: HttpException) {
+                                    when (e.code()) {
+                                        403 -> {
+                                            println("HTTP 403 Forbidden: ${e.message()} - Possible groupId mismatch")
+                                            Toast.makeText(context, "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.", Toast.LENGTH_LONG).show()
+                                        }
+                                        else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    e.printStackTrace()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    e.printStackTrace()
+                                }
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Project",
+                                tint = Color.Red
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Mulai",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = project.startDate ?: "-",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Selesai",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = project.endDate ?: "-",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Daftar Tugas",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (tasks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tidak ada tugas",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(tasks) { task ->
+                        TaskCard(
+                            task = task,
+                            userId = userId,
+                            groupId = groupId,
+                            projectId = projectId,
+                            onStatusChange = { updatedTask ->
+                                coroutineScope.launch {
+                                    try {
+                                        val response = apiService.updateTask(
+                                            userId, groupId, projectId, task.id!!, TaskRequest(
+                                                id = task.id,
+                                                name = task.name ?: "",
+                                                description = task.description,
+                                                deadline = task.deadline,
+                                                reminder = task.reminder,
+                                                priority = task.priority ?: "Normal",
+                                                attachment = task.attachment,
+                                                status = updatedTask.status
+                                            )
+                                        )
+                                        if (response.isSuccessful) {
+                                            tasks[tasks.indexOf(task)] = response.body()!!
+                                            Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onEditClick = {
+                                println("Edit clicked for taskId: ${task.id}")
+                                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
+                            },
+                            onDeleteClick = {
+                                println("Attempting to delete task with userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
+                                coroutineScope.launch {
+                                    try {
+                                        apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)
+                                        tasks.remove(task)
+                                        Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "Gagal menghapus tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = {
+                navController.navigate("add_task/$userId/$groupId/$projectId/-1")
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278)),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp
+            )
+        ) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Tambah Tugas")
+        }
+    }
+}
+
+@Composable
+fun TaskCard(
+    task: Task,
+    userId: Int,
+    groupId: Int,
+    projectId: Int,
+    onStatusChange: (Task) -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val apiService = RetrofitInstance.api
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEditClick)
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = task.status ?: false,
+                    onCheckedChange = { isChecked ->
+                        val updatedTask = task.copy(status = isChecked)
+                        onStatusChange(updatedTask)
+                    },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Column {
+                    Text(
+                        text = task.name ?: "Tanpa Nama",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Batas Waktu: ${task.deadline ?: "Tanpa Batas"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+            }
+            Row {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Task",
+                    modifier = Modifier.clickable { onEditClick() }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Task",
+                    modifier = Modifier.clickable { onDeleteClick() },
+                    tint = Color.Red
+                )
+            }
         }
     }
 }
