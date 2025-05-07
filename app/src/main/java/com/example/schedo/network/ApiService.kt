@@ -115,12 +115,10 @@ interface ApiService {
         @Part profilePicture: MultipartBody.Part
     ): Response<UserResponse2>
 
-    // 🔹 Endpoint baru: Login dengan Google
-    @POST("users/{userId}/google-login")
+    @POST("google-login")
     suspend fun loginWithGoogle(
-        @Path("userId") userId: Int,
-        @Body token: Map<String, String?>
-    ): Response<User>
+        @Body token: Map<String, String>
+    ): Response<LoginResponse>
 }
 
 data class GroupRequest(

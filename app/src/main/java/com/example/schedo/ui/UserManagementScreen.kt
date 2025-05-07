@@ -192,6 +192,15 @@ fun UserManagementScreen() {
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(user?.profile_picture)
                                     .crossfade(true)
+                                    .placeholder(android.R.drawable.ic_menu_gallery) // Gambar sementara saat loading
+                                    .error(android.R.drawable.ic_menu_close_clear_cancel) // Gambar jika gagal
+                                    .listener(
+                                        onStart = { Log.d("Coil", "Image loading started for ${user?.profile_picture}") },
+                                        onSuccess = { _, _ -> Log.d("Coil", "Image loaded successfully for ${user?.profile_picture}") },
+                                        onError = { request, result ->
+                                            Log.e("Coil", "Image loading failed for ${request.data}: ${result.throwable.message}", result.throwable)
+                                        }
+                                    )
                                     .build()
                             ),
                             contentDescription = "Profile Picture",
@@ -206,7 +215,6 @@ fun UserManagementScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
                     // Button to upload profile picture
                     Button(
