@@ -156,6 +156,13 @@ interface ApiService {
 
 
 
+
+    // 🔹 Endpoint baru: Login dengan Google
+    @POST("users/{userId}/google-login")
+    suspend fun loginWithGoogle(
+        @Path("userId") userId: Int,
+        @Body token: Map<String, String?>
+    ): Response<User>
 }
 
 data class ScheduleRequest(
