@@ -3,23 +3,41 @@ package com.example.schedo.ui
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.navigation.NavHostController
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
+import com.example.schedo.ui.*
+import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
+import com.example.schedo.ui.theme.Utama1
+import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import io.opencensus.trace.Span
 import kotlinx.coroutines.launch
 
 @Composable
@@ -138,14 +156,32 @@ fun LoginScreen(navController: NavHostController) {
         ) {
             Text(
                 text = "Login",
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            Box(
+                modifier = Modifier.size(160.dp).padding(bottom = 16.dp),
+            ){
+                Image(
+                    painter = painterResource(id = R.drawable.logofix),
+                    contentDescription = "Schedo Logo",
+                    modifier = Modifier.size(160.dp).padding(bottom = 16.dp)
+                )
+            }
 
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 enabled = !isLoading
             )
 
@@ -154,7 +190,14 @@ fun LoginScreen(navController: NavHostController) {
                 onValueChange = { password = it },
                 label = { Text("Password") },
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 enabled = !isLoading
             )
 
@@ -209,7 +252,8 @@ fun LoginScreen(navController: NavHostController) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -217,8 +261,50 @@ fun LoginScreen(navController: NavHostController) {
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Text("Login")
+                    Text("Continue")
                 }
+            }
+
+            //button forgot password
+            Button(
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Grey2, contentColor = Utama2)
+            ) { Text("Forgot Password")}
+
+            //text dont have account
+            TextButton(
+                onClick = { navController.navigate("register") },
+                enabled = !isLoading
+            ) {
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("Dont have an account?")
+                    }
+                    withStyle(style = SpanStyle(color = Utama2)){
+                        append(" Sign up")
+                    }
+                })
+            }
+
+            //divider dengan sign in with google
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).widthIn(max = 200.dp).align(Alignment.CenterHorizontally)
+            ){
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f).height(1.dp),
+                    color = Grey1
+                )
+                Text(
+                    text = "or",
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    color = Grey1
+                )
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f).height(1.dp),
+                    color = Grey1
+                )
             }
 
             // Tombol Sign in with Google
@@ -230,7 +316,7 @@ fun LoginScreen(navController: NavHostController) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    containerColor = Grey2,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
@@ -240,16 +326,36 @@ fun LoginScreen(navController: NavHostController) {
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 } else {
-                    Text("Sign in with Google")
+                    Image(
+                        painter = painterResource(R.drawable.google_logo),
+                        contentDescription = "google logo",
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "Sign in with Google",
+                        modifier = Modifier.padding(10.dp))
                 }
             }
 
-            TextButton(
-                onClick = { navController.navigate("register") },
-                enabled = !isLoading
-            ) {
-                Text("Don't have an account? Register")
+            // text terms & condition
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(18.dp)
+            ){
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("By Continuing I agree with Privacy Policy")
+                    }
+                })
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("and Terms & Conditions")
+                    }
+                })
+
             }
+
+
         }
     }
 }
