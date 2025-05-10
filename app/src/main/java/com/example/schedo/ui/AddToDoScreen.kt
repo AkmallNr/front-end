@@ -248,35 +248,14 @@ fun AddTodoScreen(
                 )
             }
 
-            val user = users.find { it.id == currentUserId } ?: User(currentUserId, "Default Name", "default@example.com", emptyList())
+            val user = users.find { it.id == currentUserId } ?: User(currentUserId, "Default Name", "default@example.com", emptyList(), emptyList())
 
             CardField(
                 user = user,
                 groups = groups,
                 label = "Task Group",
                 value = selectedGroup,
-                onAddTaskGroup = { name ->
-                    coroutineScope.launch {
-                        try {
-                            if (name.isNotEmpty()) {
-                                // Tambahkan implementasi untuk menambahkan grup
-                                val groupRequest = GroupRequest(name = name, icon = "fas fa-users")
-                                val response = RetrofitInstance.api.addGroupToUser(user.id, groupRequest)
-                                if (response.isSuccessful) {
-                                    fetchGroups() // Refresh grup setelah menambahkan
-                                } else {
-                                    errorMessage = "Gagal menambahkan grup: ${response.errorBody()?.string()}"
-                                }
-                            } else {
-                                errorMessage = "Nama Grup tidak boleh kosong"
-                                println("Nama Grup tidak boleh kosong: $name")
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            errorMessage = "Error adding group: ${e.message}"
-                        }
-                    }
-                },
+                onAddTaskGroup = { },
                 onGroupsUpdated = { fetchGroups() },
                 isDropdown = true,
                 onValueChange = { newValue ->

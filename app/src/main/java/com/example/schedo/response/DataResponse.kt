@@ -1,9 +1,6 @@
 package com.example.schedo.response
 
-import com.example.schedo.model.Group
-import com.example.schedo.model.Project
-import com.example.schedo.model.Task
-import com.example.schedo.model.User
+import com.example.schedo.model.*
 import com.google.gson.annotations.SerializedName
 
 data class UserResponse(
@@ -24,6 +21,14 @@ data class TaskResponse(
 
 data class LoginResponse(
     val data: User
+)
+
+data class QuoteResponse(
+    val data: List<Quote>
+)
+
+data class ScheduleResponse(
+    val data: List<Schedule>
 )
 
 data class UserResponse2(
