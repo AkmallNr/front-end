@@ -1,16 +1,28 @@
 package com.example.schedo.ui
 
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
+import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.R
 import kotlinx.coroutines.launch
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -38,15 +50,33 @@ fun RegisterScreen(navController: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Register",
-                style = MaterialTheme.typography.headlineMedium
+                text = "Sign Up",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            Box(
+                modifier = Modifier.size(160.dp).padding(bottom = 16.dp),
+            ){
+                Image(
+                    painter = painterResource(id = R.drawable.logofix),
+                    contentDescription = "Schedo Logo",
+                    modifier = Modifier.size(160.dp).padding(bottom = 16.dp)
+                )
+            }
 
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Name") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 isError = name.isEmpty() && errorMessage.isNotEmpty()
             )
 
@@ -54,7 +84,14 @@ fun RegisterScreen(navController: NavHostController) {
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 isError = (email.isEmpty() || !email.matches(emailPattern)) && errorMessage.isNotEmpty()
             )
 
@@ -63,7 +100,14 @@ fun RegisterScreen(navController: NavHostController) {
                 onValueChange = { password = it },
                 label = { Text("Password") },
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 isError = password.isEmpty() && errorMessage.isNotEmpty()
             )
 
@@ -72,7 +116,14 @@ fun RegisterScreen(navController: NavHostController) {
                 onValueChange = { confirmPassword = it },
                 label = { Text("Confirm Password") },
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                colors =
+                    OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Grey2,
+                        unfocusedLabelColor = Color.Black,
+                        unfocusedContainerColor = Grey2,
+                        focusedBorderColor = Utama2,
+                        focusedLabelColor = Utama2),
                 isError = (confirmPassword.isEmpty() || confirmPassword != password) && errorMessage.isNotEmpty()
             )
 
@@ -148,7 +199,8 @@ fun RegisterScreen(navController: NavHostController) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                enabled = !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -156,15 +208,43 @@ fun RegisterScreen(navController: NavHostController) {
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Register")
+                    Text("Continue")
                 }
             }
 
+            //text already have an account
             TextButton(
                 onClick = { navController.navigate("login") }
+//                enabled = !isLoading
             ) {
-                Text("Already have an account? Login")
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("Already have an account?")
+                    }
+                    withStyle(style = SpanStyle(color = Utama2)){
+                        append(" Login")
+                    }
+                })
             }
+
+            // text terms & condition
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(18.dp)
+            ){
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("By Continuing I agree with Privacy Policy")
+                    }
+                })
+                Text(buildAnnotatedString {
+                    withStyle(style = SpanStyle(color = Grey1)){
+                        append("and Terms & Conditions")
+                    }
+                })
+
+            }
+
         }
     }
 }
