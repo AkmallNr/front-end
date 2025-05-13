@@ -304,14 +304,14 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
 
                         Text(
                             text = "Jadwal Hari Ini",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(16.dp)
                         )
 
                         if (isLoading) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
+                                CircularProgressIndicator(color = Utama2)
                             }
                         } else if (schedules.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -320,7 +320,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         } else {
                             LazyColumn(
                                 modifier = Modifier
-                                    .weight(1f)
                                     .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -338,17 +337,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        Button(
-                            onClick = { showAddSchedule = true },
-                            modifier = Modifier
-                                .align(Alignment.End)
-                                .padding(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
-                            Text("Tambah Jadwal")
-                        }
-
                         if (showAddSchedule || selectedSchedule != null) {
                             AddScheduleDialog(
                                 navController,
@@ -359,6 +347,17 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                                 scheduleToEdit = selectedSchedule,
                                 onScheduleAdded = { fetchSchedules() }
                             )
+                        }
+
+                        Button(
+                            onClick = { showAddSchedule = true },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
+                            Text("Tambah Jadwal")
                         }
                     }
                 }

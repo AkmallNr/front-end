@@ -38,7 +38,9 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
 import com.example.schedo.ui.theme.Utama1
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
@@ -365,7 +367,7 @@ fun AddTaskScreen(
                     EnhancedTaskOptionRow(
                         icon = { Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2) },
                         title = "Catatan",
-                        value = "TAMBAH",
+                        value = "+",
                         buttonStyle = true,
                         onClick = { showNoteDialog = true }
                     )
@@ -377,7 +379,7 @@ fun AddTaskScreen(
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2) },
                     title = "Lampiran",
-                    value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList!!.size} item",
+                    value = if (attachmentList.isNullOrEmpty()) "+" else "${attachmentList!!.size} item",
                     buttonStyle = attachmentList.isNullOrEmpty(),
                     onClick = { showAttachmentDialog = true }
                 )
@@ -632,13 +634,15 @@ fun AddTaskScreen(
                 AlertDialog(
                     onDismissRequest = { showNoteDialog = false },
                     confirmButton = {
-                        TextButton(onClick = { showNoteDialog = false }) {
+                        TextButton(onClick = { showNoteDialog = false }, colors = ButtonDefaults.buttonColors(
+                            Utama2)
+                        ) {
                             Text("Simpan")
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showNoteDialog = false }) {
-                            Text("Batal")
+                            Text("Batal", color = Utama2)
                         }
                     },
                     text = {
@@ -646,7 +650,8 @@ fun AddTaskScreen(
                             value = note,
                             onValueChange = { note = it },
                             modifier = Modifier.fillMaxWidth(),
-                            minLines = 4
+                            minLines = 4,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Utama2)
                         )
                     }
                 )
@@ -687,13 +692,13 @@ fun QuoteSection(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote")
+                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote", tint = Utama2)
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -1075,27 +1080,27 @@ fun EnhancedTaskOptionRow(
                     chipStyle -> {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         ) {
                             Text(
                                 text = value,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = Utama2,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
                     }
                     buttonStyle -> {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = CircleShape,
+                            color = Background,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         ) {
                             Text(
                                 text = value,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = Utama2,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
@@ -1105,7 +1110,7 @@ fun EnhancedTaskOptionRow(
                         Text(
                             text = value,
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Utama2,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         )
                     }
