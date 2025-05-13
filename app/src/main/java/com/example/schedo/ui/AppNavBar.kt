@@ -16,13 +16,14 @@ import androidx.navigation.NavType
 import com.example.schedo.model.*
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.util.PreferencesHelper
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavHost(
     navController: NavHostController,
     groupId: Int = -1,
     projectId: Int = -1,
-    startDestination: String = "login" // Tambahkan parameter startDestination
+    startDestination: String = "login" // Parameter startDestination
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -42,7 +43,7 @@ fun AppNavHost(
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = startDestination, // Gunakan startDestination dari parameter
+            startDestination = startDestination,
             modifier = Modifier.padding(paddingValues)
         ) {
             composable("login") {
@@ -197,7 +198,7 @@ fun AppNavHost(
                 PomodoroScreen(navController)
             }
             composable(BottomNavItem.PROFILE.route) {
-                UserManagementScreen()
+                UserManagementScreen(navController = navController)
             }
         }
     }
