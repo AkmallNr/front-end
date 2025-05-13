@@ -41,6 +41,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
+import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Utama2
 import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
@@ -75,7 +77,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val currentDate = remember { Calendar.getInstance() }
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
 
-    val backgroundColor = Color(0xFFFFFBEB)
+    val backgroundColor = Background
     val selectedTabColor = Color(0xFFFFC278)
 
     fun fetchSchedules() {
@@ -159,8 +161,9 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                )
+                    containerColor = Utama2
+                ),
+                modifier = Modifier.statusBarsPadding()
             )
         },
         containerColor = backgroundColor
@@ -182,14 +185,16 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         modifier = Modifier.weight(1f),
-                        selectedColor = selectedTabColor
+                        selectedColor = selectedTabColor,
+                        unSelectedColor = Color.White
                     )
                     TabButton(
                         text = "Schedule",
                         isSelected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         modifier = Modifier.weight(1f),
-                        selectedColor = selectedTabColor
+                        selectedColor = selectedTabColor,
+                        unSelectedColor = Color.White
                     )
                 }
 
@@ -469,13 +474,14 @@ fun TabButton(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    selectedColor: Color = Color(0xFFFFC278)
+    selectedColor: Color = Utama2,
+    unSelectedColor: Color = Color.White
 ) {
     Box(
         modifier = modifier
             .padding(4.dp)
             .background(
-                color = if (isSelected) selectedColor else Color.Transparent,
+                color = if (isSelected) selectedColor else unSelectedColor,
                 shape = MaterialTheme.shapes.medium
             )
             .clickable(onClick = onClick)
@@ -486,7 +492,7 @@ fun TabButton(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) Color.Black else Color.Gray
+            color = if (isSelected) Color.White else Utama2
         )
     }
 }

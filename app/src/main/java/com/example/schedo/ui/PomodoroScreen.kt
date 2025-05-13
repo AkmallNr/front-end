@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.schedo.ui.theme.Background
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
@@ -58,7 +59,7 @@ fun PomodoroScreen(navController: NavHostController) {
     var angle by remember { mutableFloatStateOf(totalSeconds * 360f / (60 * 60)) } // Konversi waktu ke sudut
 
     // Warna
-    val backgroundColor = Color(0xFFFFF3E0)
+    val backgroundColor = Background
     val timerColor = Color(0xFFFFCC80)
     val handleColor = Color.White
     val progressColor = Color.White
