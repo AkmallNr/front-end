@@ -15,6 +15,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.example.schedo.model.*
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 
 @Composable
@@ -88,7 +89,7 @@ fun AppNavHost(
 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = Utama2)
                     }
                 } else {
                     AddTodoScreen(

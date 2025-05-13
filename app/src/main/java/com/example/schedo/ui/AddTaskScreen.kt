@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,10 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Utama1
+import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.ui.theme.Utama3
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
@@ -296,12 +301,12 @@ fun AddTaskScreen(
                 title = { Text(if (taskId == null) "Add Task" else "Edit Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Utama3)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+//                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = Color.Black
                 )
             )
         }
@@ -318,26 +323,29 @@ fun AddTaskScreen(
                     value = taskTitle,
                     onValueChange = { taskTitle = it },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
                     textStyle = LocalTextStyle.current.copy(fontSize = 20.sp),
-                    placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp) },
+                    placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp, color = Grey1) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        focusedBorderColor = Utama2,
+                        unfocusedBorderColor = Grey1
                     ),
                     singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Deadline section
                 EnhancedTaskOptionRow(
-                    icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline") },
+                    icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline", tint = Utama2) },
                     title = "Batas waktu",
                     value = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedDeadlineDate),
                     onClick = { showDeadlineDatePicker = true }
                 )
 
+                // reminder section
                 EnhancedTaskOptionRow(
-                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder") },
+                    icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder", tint = Utama2) },
                     title = "Pengingat",
                     value = if (reminder == "Tidak") "Tidak" else SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate),
                     chipStyle = reminder != "Tidak",
@@ -352,10 +360,10 @@ fun AddTaskScreen(
                 )
 
 
-
+                // note section
                 if (note.isEmpty()) {
                     EnhancedTaskOptionRow(
-                        icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
+                        icon = { Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2) },
                         title = "Catatan",
                         value = "TAMBAH",
                         buttonStyle = true,
@@ -365,8 +373,9 @@ fun AddTaskScreen(
                     NoteSection(note = note, onClick = { showNoteDialog = true })
                 }
 
+                // attachment section
                 EnhancedTaskOptionRow(
-                    icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment") },
+                    icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2) },
                     title = "Lampiran",
                     value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList!!.size} item",
                     buttonStyle = attachmentList.isNullOrEmpty(),
@@ -394,7 +403,7 @@ fun AddTaskScreen(
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Utama2)
                     }
                 } else {
                     QuoteSection(
@@ -492,8 +501,8 @@ fun AddTaskScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                 ) {
                     Text(if (taskId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
                 }
@@ -789,13 +798,13 @@ fun PrioritySection(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.Flag, contentDescription = "Priority")
+                        Icon(Icons.Default.Flag, contentDescription = "Priority", tint = Utama2)
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -869,13 +878,13 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.Note, contentDescription = "Note")
+                        Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2)
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -1045,7 +1054,7 @@ fun EnhancedTaskOptionRow(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center

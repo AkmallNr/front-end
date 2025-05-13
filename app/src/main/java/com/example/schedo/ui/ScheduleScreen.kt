@@ -1,5 +1,6 @@
 package com.example.schedo.ui
 
+import android.widget.Space
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,10 +40,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.ui.theme.Utama3
 import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
@@ -57,7 +60,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
 
     if (userId == -1) {
         LaunchedEffect(Unit) {
-            Toast.makeText(context, "Silakan login terlebih dahulu", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Silahkan login terlebih dahulu", Toast.LENGTH_LONG).show()
             navController.navigate("login")
         }
         return
@@ -145,27 +148,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         fetchSchedules()
     }
 
+    // TopAppBar Custom
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (selectedProject == null) "Jadwal" else "Detail Proyek") },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (selectedProject == null) {
-                            navController.popBackStack()
-                        } else {
-                            selectedProject = null
-                        }
-                    }) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Utama2
-                ),
-                modifier = Modifier.statusBarsPadding()
-            )
-        },
         containerColor = backgroundColor
     ) { paddingValues ->
         Column(
@@ -198,14 +182,48 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     )
                 }
 
-                Text(
-                    text = if (selectedTab == 0) "All Project" else "Schedule",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .align(Alignment.CenterHorizontally)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ){
+                    IconButton(onClick = {
+                        if (selectedProject == null) {
+                            navController.popBackStack()
+                        } else {
+                            selectedProject = null
+                        }
+                    }) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Utama3)
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Text(
+                        text = if (selectedTab == 0) "All Project" else "Schedule",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+//                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    IconButton(onClick = {}, enabled = false) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = null, tint = Color.Transparent)
+                    }
+
+                }
+
+//                Spacer(modifier = Modifier.weight(1f))
+//
+//                Text(
+//                    text = if (selectedTab == 0) "All Project" else "Schedule",
+//                    style = MaterialTheme.typography.headlineMedium,
+//                    fontWeight = FontWeight.Bold,
+//                    modifier = Modifier.align(Alignment.CenterHorizontally)
+//                )
+//
+//                Spacer(modifier = Modifier.weight(1f))
+
 
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
@@ -537,7 +555,7 @@ fun ProjectContentWithData(
 
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = Utama2)
         }
     } else if (projects.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -618,7 +636,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     val coroutineScope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<Task>() }
     var isLoading by remember { mutableStateOf(false) }
-    val backgroundColor = Color(0xFFFFFBEB)
+    val backgroundColor = Background
     val apiService = RetrofitInstance.api
 
     // Log untuk memverifikasi parameter saat komponen dimuat
@@ -651,6 +669,36 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 .padding(16.dp)
                 .padding(bottom = 72.dp)
         ) {
+            // Custom Top Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ){
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Utama3
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Text(
+                    text = "Detail Proyek",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                IconButton(onClick = {}, enabled = false) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = null, tint = Color.Transparent)
+                }
+
+            }
+
+            // Detail Proyek Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -664,7 +712,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                     ) {
                         Text(
                             text = project.name ?: "Tanpa Nama",
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                         IconButton(onClick = {
@@ -740,14 +788,15 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             Text(
                 text = "Daftar Tugas",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = Utama2)
                 }
             } else if (tasks.isEmpty()) {
                 Box(
