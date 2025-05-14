@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.Notifications
@@ -33,12 +35,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.schedo.model.Project
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.ui.theme.Background
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,9 +56,18 @@ fun HomeScreen(navController: NavHostController) {
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var shouldRefreshUserData by remember { mutableStateOf(false) }
-    val projects = remember { mutableStateListOf<Project>() }
+
+    // All available projects
+    val allProjects = remember { mutableStateListOf<Project>() }
+
+    // Projects selected for display on home screen
+    val selectedProjects = remember { mutableStateListOf<Project>() }
+
     var isProjectsLoading by remember { mutableStateOf(false) }
     var showAllProjects by remember { mutableStateOf(false) }
+
+    // State for project selection dialog
+    var showProjectSelectionDialog by remember { mutableStateOf(false) }
 
     fun fetchUserData() {
         coroutineScope.launch {
@@ -101,9 +114,14 @@ fun HomeScreen(navController: NavHostController) {
             isProjectsLoading = true
             try {
                 val response = RetrofitInstance.api.getProjectsByUser(userId)
-                projects.clear()
-                projects.addAll(response.data)
-                Log.d("HomeScreen", "Projects fetched successfully: ${projects.size} projects")
+                allProjects.clear()
+                allProjects.addAll(response.data)
+
+                // Initially, select up to 3 projects to display
+                selectedProjects.clear()
+                selectedProjects.addAll(allProjects.take(3))
+
+                Log.d("HomeScreen", "Projects fetched successfully: ${allProjects.size} projects")
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Failed to fetch projects: ${e.message}")
                 e.printStackTrace()
@@ -111,6 +129,14 @@ fun HomeScreen(navController: NavHostController) {
                 isProjectsLoading = false
             }
         }
+    }
+
+    // Function to save selected projects (in a real app, this would persist to local storage or backend)
+    fun saveSelectedProjects(projects: List<Project>) {
+        selectedProjects.clear()
+        selectedProjects.addAll(projects)
+        // In a real implementation, you might want to save this to SharedPreferences or your backend
+        Log.d("HomeScreen", "Saved ${selectedProjects.size} projects as shortcuts")
     }
 
     LaunchedEffect(Unit) {
@@ -125,7 +151,7 @@ fun HomeScreen(navController: NavHostController) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .background(Color(0xFFFFFBE6)) // Light cream background like in the image
+                    .background(Background) // Light cream background like in the image
             ) {
                 // Top bar with greeting and icons
                 Row(
@@ -285,7 +311,7 @@ fun HomeScreen(navController: NavHostController) {
                         )
 
                         Text(
-                            "${projects.size}",
+                            "${selectedProjects.size}",
                             fontSize = 14.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(start = 8.dp)
@@ -293,13 +319,13 @@ fun HomeScreen(navController: NavHostController) {
                     }
 
                     IconButton(
-                        onClick = { showAllProjects = true },
+                        onClick = { showProjectSelectionDialog = true },
                         modifier = Modifier
                             .size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
-                            contentDescription = "View All Projects",
+                            contentDescription = "Add Project Shortcut",
                             tint = Color.Black
                         )
                     }
@@ -317,23 +343,22 @@ fun HomeScreen(navController: NavHostController) {
                     ) {
                         CircularProgressIndicator()
                     }
-                } else if (projects.isEmpty()) {
+                } else if (selectedProjects.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No projects available", color = Color.Gray)
+                        Text("No projects selected", color = Color.Gray)
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Display only the first 3 projects in the main view
-                        val displayProjects = if (showAllProjects) projects else projects.take(3)
-                        items(displayProjects) { project ->
+                        // Display only selected projects
+                        items(selectedProjects) { project ->
                             ProjectCard(
                                 project = project,
                                 onClick = {
@@ -346,32 +371,141 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
-            // Show "View All" button at the bottom if there are more than 3 projects
-            if (projects.size > 3 && !showAllProjects) {
-                Button(
-                    onClick = { showAllProjects = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFA726)
-                    )
+            // Project Selection Dialog
+            if (showProjectSelectionDialog) {
+                ProjectSelectionDialog(
+                    allProjects = allProjects,
+                    currentlySelected = selectedProjects,
+                    onDismiss = { showProjectSelectionDialog = false },
+                    onConfirm = { selected ->
+                        saveSelectedProjects(selected)
+                        showProjectSelectionDialog = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ProjectSelectionDialog(
+    allProjects: List<Project>,
+    currentlySelected: List<Project>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<Project>) -> Unit
+) {
+    val selectedIds = remember { mutableStateListOf<Int>() }
+
+    // Initialize with currently selected project IDs
+    LaunchedEffect(currentlySelected) {
+        selectedIds.clear()
+        currentlySelected.forEach { project ->
+            project.id?.let { selectedIds.add(it) }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                // Dialog header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("View All Projects")
+                    Text(
+                        "Select Projects",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close"
+                        )
+                    }
                 }
-            } else if (showAllProjects) {
-                Button(
-                    onClick = { showAllProjects = false },
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // Project selection list
+                LazyColumn(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFA726)
-                    )
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Show Less")
+                    items(allProjects) { project ->
+                        project.id?.let { projectId ->
+                            val isSelected = selectedIds.contains(projectId)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (isSelected) {
+                                            selectedIds.remove(projectId)
+                                        } else {
+                                            selectedIds.add(projectId)
+                                        }
+                                    }
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    project.name ?: "Unnamed Project",
+                                    fontSize = 16.sp
+                                )
+
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color(0xFFFFA726)
+                                    )
+                                }
+                            }
+
+                            Divider()
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            val selectedProjects = allProjects.filter { project ->
+                                project.id?.let { selectedIds.contains(it) } ?: false
+                            }
+                            onConfirm(selectedProjects)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFA726)
+                        )
+                    ) {
+                        Text("Save")
+                    }
                 }
             }
         }
