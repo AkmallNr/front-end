@@ -55,7 +55,7 @@ fun LoginScreen(navController: NavHostController) {
 
     // Konfigurasi Google Sign-In
     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-        .requestIdToken("1089309830161-mg7gircvhlr3ltge0qnge4ntnt5sg4gd.apps.googleusercontent.com") // Ambil dari google-services.json
+        .requestIdToken("1089309830161-mg7gircvhlr3ltge0qnge4ntnt5sg4gd.apps.googleusercontent.com")
         .requestEmail()
         .build()
 
@@ -86,28 +86,65 @@ fun LoginScreen(navController: NavHostController) {
                                     coroutineScope.launch {
                                         try {
                                             val firebaseToken = it.getIdToken(false).result.token
-                                            // Gunakan userId dari PreferencesHelper atau fallback (misalnya, 0 untuk pengujian)
-                                            val userId = preferencesHelper.getUserId() ?: 0
+                                            Log.d("GoogleSignIn", "Sending Firebase Token: $firebaseToken")
                                             val response = RetrofitInstance.api.loginWithGoogle(
-                                                userId,
-                                                mapOf("token" to firebaseToken)
+                                                mapOf("token" to (firebaseToken ?: ""))
                                             )
                                             if (response.isSuccessful) {
-                                                val user = response.body()
-                                                user?.let { backendUser ->
-                                                    preferencesHelper.saveUserId(backendUser.id)
-                                                    Log.d("GoogleSignIn", "Backend sync berhasil: ${backendUser.name}")
+                                                val loginResponse = response.body()
+                                                if (loginResponse != null) {
+                                                    val user = loginResponse.data
+                                                    preferencesHelper.saveUserId(user.id)
                                                     navController.navigate(BottomNavItem.TODO.route) {
                                                         popUpTo("login") { inclusive = true }
                                                     }
-                                                } ?: run {
-                                                    errorMessage = "No user data returned from backend"
-                                                    Log.w("GoogleSignIn", "Tidak ada data pengguna dari backend")
+                                                } else {
+                                                    errorMessage = "Login successful but no user data returned"
                                                 }
                                             } else {
-                                                errorMessage = "Sinkronisasi backend gagal: ${response.errorBody()?.string()}"
-                                                Log.e("GoogleSignIn", "Backend sync gagal: ${response.errorBody()?.string()}")
+                                                val errorBody = response.errorBody()?.string()
+                                                errorMessage = if (errorBody?.contains("Invalid credentials") == true) {
+                                                    "Invalid email or password"
+                                                } else {
+                                                    "Failed to login: $errorBody"
+                                                }
                                             }
+
+
+
+
+//                                            if (response.isSuccessful) {
+//                                                if (response != null) {
+//                                                    val user = response.body()?.data
+//                                                    if (user != null) {
+//                                                        preferencesHelper.saveUserId(user.id)
+//                                                    }
+//                                                    navController.navigate(BottomNavItem.TODO.route) {
+//                                                        popUpTo("login") { inclusive = true }
+//                                                    }
+//                                                } else {
+//                                                    errorMessage = "Login successful but no user data returned"
+//                                                }
+////
+////
+////
+////                                                val user = response.body()?.data
+////                                                user?.let { backendUser ->
+////                                                    preferencesHelper.saveUserId(backendUser.id)
+////                                                    Log.d("GoogleSignIn", "Backend sync berhasil: ${backendUser.name}, ID: ${backendUser.id}")
+////                                                    navController.navigate(BottomNavItem.TODO.route) {
+////                                                        popUpTo("login") { inclusive = true }
+////                                                    }
+////                                                } ?: run {
+////                                                    errorMessage = "No user data returned from backend"
+////                                                    Log.w("GoogleSignIn", "Tidak ada data pengguna dari backend")
+////                                                }
+//                                            } else {
+//                                                val errorBody = response.errorBody()?.string() ?: "No error details"
+//                                                val errorCode = response.code()
+//                                                errorMessage = "Sinkronisasi backend gagal: Code $errorCode - $errorBody"
+//                                                Log.e("GoogleSignIn", "Backend sync gagal: Code $errorCode - $errorBody")
+//                                            }
                                         } catch (e: Exception) {
                                             errorMessage = "Error sinkronisasi backend: ${e.message}"
                                             Log.e("GoogleSignIn", "Backend sync error: ${e.message}", e)
