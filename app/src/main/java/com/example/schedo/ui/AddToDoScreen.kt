@@ -222,11 +222,6 @@ fun AddTodoScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
-                },
-                actions = {
-                    IconButton(onClick = { /* Handle notifications */ }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifikasi")
-                    }
                 }
             )
         }

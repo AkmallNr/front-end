@@ -24,6 +24,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.ui.theme.Utama3
 import com.example.schedo.util.PreferencesHelper
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
@@ -53,7 +54,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 .height(64.dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(Background),
-            color = Color.Transparent
+            color = Utama2
         ) {
             Row(
                 modifier = Modifier
@@ -81,7 +82,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[0].icon,
                         contentDescription = items[0].title,
                         modifier = Modifier.size((24 * animatedSize1).dp),
-                        tint = if (selected1) Utama2 else Color.Gray
+                        tint = if (selected1) Utama3 else Color.White
                     )
                 }
 
@@ -104,7 +105,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[1].icon,
                         contentDescription = items[1].title,
                         modifier = Modifier.size((24 * animatedSize2).dp),
-                        tint = if (selected2) Utama2 else Color.Gray
+                        tint = if (selected2) Utama3 else Color.White
                     )
                 }
 
@@ -130,7 +131,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[2].icon,
                         contentDescription = items[2].title,
                         modifier = Modifier.size((24 * animatedSize3).dp),
-                        tint = if (selected3) Utama2 else Color.Gray
+                        tint = if (selected3) Utama3 else Color.White
                     )
                 }
 
@@ -153,7 +154,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[3].icon,
                         contentDescription = items[3].title,
                         modifier = Modifier.size((24 * animatedSize4).dp),
-                        tint = if (selected4) Utama2 else Color.Gray
+                        tint = if (selected4) Utama3 else Color.White
                     )
                 }
             }
@@ -178,7 +179,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 .offset(y = (-32).dp)
                 .align(Alignment.Center),
             shape = CircleShape,
-            containerColor = Utama2
+            containerColor = Utama3
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", tint = Color.White)
         }
