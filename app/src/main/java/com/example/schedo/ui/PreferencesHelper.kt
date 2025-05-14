@@ -9,6 +9,7 @@ class PreferencesHelper(context: Context) {
 
     companion object {
         const val KEY_USER_ID = "user_id"
+        private const val KEY_SELECTED_PROJECT_IDS = "selected_project_ids"
     }
 
     fun saveUserId(userId: Int) {
@@ -21,5 +22,22 @@ class PreferencesHelper(context: Context) {
 
     fun clearUserId() {
         sharedPreferences.edit().remove(KEY_USER_ID).apply()
+    }
+
+    fun saveSelectedProjectIds(projectIds: String) {
+        sharedPreferences.edit().putString(KEY_SELECTED_PROJECT_IDS, projectIds).apply()
+    }
+
+    fun getSelectedProjectIds(): List<String> {
+        return sharedPreferences.getString(KEY_SELECTED_PROJECT_IDS, "")?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+    }
+
+    fun clearSelectedProjectIds() {
+        sharedPreferences.edit().remove(KEY_SELECTED_PROJECT_IDS).apply()
+    }
+
+    // Fungsi untuk menghapus semua data sesi saat logout
+    fun clearSession() {
+        sharedPreferences.edit().clear().apply()
     }
 }

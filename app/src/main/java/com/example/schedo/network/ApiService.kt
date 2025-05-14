@@ -25,6 +25,11 @@ interface ApiService {
         @Path("userId") userId: Int
     ): ProjectResponse
 
+    @GET("users/{userId}/tasks")
+    suspend fun getTaskByUser(
+        @Path("userId") userId: Int
+    ): TaskResponse
+
     // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
