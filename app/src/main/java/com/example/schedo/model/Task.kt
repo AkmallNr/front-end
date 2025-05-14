@@ -10,5 +10,4 @@ data class Task (
     val attachment: List<String>? = null,
     val status: Boolean? =null,
     val quoteId: Int? = null
-
 )
