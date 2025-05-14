@@ -248,19 +248,6 @@ fun AddTodoScreen(
             CardField(
                 user = user,
                 groups = groups,
-                label = "Task Group",
-                value = selectedGroup,
-                onAddTaskGroup = { },
-                onGroupsUpdated = { fetchGroups() },
-                isDropdown = true,
-                onValueChange = { newValue ->
-                    selectedGroup = newValue as? Group
-                }
-            )
-
-            CardField(
-                user = user,
-                groups = groups,
                 label = "Project Name",
                 value = projectName,
                 onAddTaskGroup = { /* Tidak digunakan */ },
@@ -280,6 +267,19 @@ fun AddTodoScreen(
                 isMultiline = true,
                 onValueChange = { newValue ->
                     description = newValue as String
+                }
+            )
+
+            CardField(
+                user = user,
+                groups = groups,
+                label = "Label",
+                value = selectedGroup,
+                onAddTaskGroup = { },
+                onGroupsUpdated = { fetchGroups() },
+                isDropdown = true,
+                onValueChange = { newValue ->
+                    selectedGroup = newValue as? Group
                 }
             )
 
@@ -405,13 +405,13 @@ fun <T> CardField(
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("Tambah Grup") },
+            title = { Text("Add Label") },
             text = {
                 Column {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Nama Grup") },
+                        label = { Text("Label Name") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { keyboardController?.hide() })
@@ -434,7 +434,7 @@ fun <T> CardField(
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Pilih Ikon", modifier = Modifier.weight(1f))
+                            Text("Choose Icon", modifier = Modifier.weight(1f))
                             Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                         }
 
@@ -531,13 +531,13 @@ fun <T> CardField(
                     if (isLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else {
-                        Text("Tambah Grup")
+                        Text("Add Label")
                     }
                 }
             },
             dismissButton = {
                 Button(onClick = { showAddDialog = false }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -560,7 +560,7 @@ fun <T> CardField(
                     ) {
                         @Suppress("UNCHECKED_CAST")
                         val selectedGroupValue = value as Group?
-                        val displayText = selectedGroupValue?.name ?: "Choose Group"
+                        val displayText = selectedGroupValue?.name ?: "Choose Label"
                         val icon = selectedGroupValue?.let {
                             fontAwesomeIcons.find { pair -> pair.first == it.icon }?.second ?: Icons.Default.Group
                         } ?: Icons.Default.Group
@@ -603,7 +603,7 @@ fun <T> CardField(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Add, contentDescription = "Tambah")
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Tambah Grup Tugas Baru")
+                                        Text("Add New Label")
                                     }
                                 },
                                 onClick = {

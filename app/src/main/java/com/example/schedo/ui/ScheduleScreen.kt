@@ -81,7 +81,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
 
     val backgroundColor = Background
-    val selectedTabColor = Color(0xFFFFC278)
+    val selectedTabColor = Utama2
 
     fun fetchSchedules() {
         coroutineScope.launch {
@@ -165,7 +165,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     TabButton(
-                        text = "Project",
+                        text = "Group",
                         isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         modifier = Modifier.weight(1f),
@@ -199,7 +199,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     Spacer(modifier = Modifier.weight(1f))
 
                     Text(
-                        text = if (selectedTab == 0) "All Project" else "Schedule",
+                        text = if (selectedTab == 0) "All Group" else "Schedule",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
 //                        modifier = Modifier.align(Alignment.CenterHorizontally)

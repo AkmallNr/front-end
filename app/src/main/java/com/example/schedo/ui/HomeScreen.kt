@@ -43,6 +43,7 @@ import com.example.schedo.model.Project
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -305,7 +306,7 @@ fun HomeScreen(navController: NavHostController) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Project Groups",
+                            "Group Task",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -326,7 +327,7 @@ fun HomeScreen(navController: NavHostController) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = "Add Project Shortcut",
-                            tint = Color.Black
+                            tint = Utama2
                         )
                     }
                 }
