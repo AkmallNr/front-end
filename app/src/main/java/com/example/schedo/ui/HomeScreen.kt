@@ -45,6 +45,7 @@ import com.example.schedo.ui.theme.Background
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.schedo.ui.formatDateRange
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
@@ -677,74 +678,3 @@ fun ProjectCard(
     }
 }
 
-// Date formatter helper function with Asia/Jakarta timezone
-fun formatDateRange(startDate: String?, endDate: String?): String {
-    if (startDate == null || endDate == null) {
-        return "No date available"
-    }
-
-    return try {
-        // Step 1: Determine the format pattern based on input
-        val dateFormat = when {
-            // ISO 8601 with milliseconds: 2025-05-11T00:00:00.000000Z
-            startDate.contains("T") && startDate.contains(".") ->
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", Locale.getDefault())
-
-            // ISO 8601 without milliseconds: 2025-05-11T00:00:00Z
-            startDate.contains("T") && !startDate.contains(".") ->
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
-
-            // Simple date time format: 2025-05-13 00:00:00
-            startDate.contains(" ") ->
-                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
-            // Simple date only: 2025-05-13
-            else ->
-                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        }
-
-        // Step 2: Set timezone for parsing - use UTC for ISO format with Z
-        if (startDate.endsWith("Z")) {
-            dateFormat.timeZone = TimeZone.getTimeZone("Asia/Jakarta")
-        }
-
-        // Step 3: Parse the dates
-        val startDateTime = dateFormat.parse(startDate)
-        val endDateTime = dateFormat.parse(endDate)
-
-        // Step 4: Format with Asia/Jakarta timezone
-        val outputFormat = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
-        outputFormat.timeZone = TimeZone.getTimeZone("Asia/Jakarta")
-
-        // Step 5: Generate formatted output
-        val formattedStart = outputFormat.format(startDateTime)
-        val formattedEnd = outputFormat.format(endDateTime)
-
-        "$formattedStart - $formattedEnd"
-    } catch (e: Exception) {
-        Log.e("DateFormat", "Error in primary formatter: ${e.message}")
-
-        // Fallback method - try to extract parts directly
-        try {
-            // For format without T separator: 2025-05-13 00:00:00
-            val cleanStartDate = startDate.replace("T", " ").substringBefore(".")
-            val cleanEndDate = endDate.replace("T", " ").substringBefore(".")
-
-            val fallbackFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-            val fallbackOutputFormat = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
-
-            val parsedStart = fallbackFormat.parse(cleanStartDate)
-            val parsedEnd = fallbackFormat.parse(cleanEndDate)
-
-            if (parsedStart != null && parsedEnd != null) {
-                "${fallbackOutputFormat.format(parsedStart)} - ${fallbackOutputFormat.format(parsedEnd)}"
-            } else {
-                "Invalid date format"
-            }
-        } catch (e2: Exception) {
-            Log.e("DateFormat", "Both formatters failed: ${e2.message}")
-            // If all parsing fails, return raw date strings
-            "${startDate.replace("T", " ").substringBefore(".")} - ${endDate.replace("T", " ").substringBefore(".")}"
-        }
-    }
-}

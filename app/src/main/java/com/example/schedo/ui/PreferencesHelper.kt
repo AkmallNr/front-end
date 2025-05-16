@@ -9,6 +9,7 @@ class PreferencesHelper(context: Context) {
 
     companion object {
         const val KEY_USER_ID = "user_id"
+        const val KEY_PROFILE_PICTURE = "profile_picture"
         private const val KEY_SELECTED_PROJECT_IDS = "selected_project_ids"
     }
 
@@ -17,11 +18,23 @@ class PreferencesHelper(context: Context) {
     }
 
     fun getUserId(): Int {
-        return sharedPreferences.getInt(KEY_USER_ID, -1) // -1 sebagai default jika belum login
+        return sharedPreferences.getInt(KEY_USER_ID, -1)
+    }
+
+    fun saveProfilePicture(profilePictureUrl: String?) {
+        sharedPreferences.edit().putString(KEY_PROFILE_PICTURE, profilePictureUrl).apply()
+    }
+
+    fun getProfilePicture(): String? {
+        return sharedPreferences.getString(KEY_PROFILE_PICTURE, null)
     }
 
     fun clearUserId() {
         sharedPreferences.edit().remove(KEY_USER_ID).apply()
+    }
+
+    fun clearProfilePicture() {
+        sharedPreferences.edit().remove(KEY_PROFILE_PICTURE).apply()
     }
 
     fun saveSelectedProjectIds(projectIds: String) {
@@ -36,7 +49,6 @@ class PreferencesHelper(context: Context) {
         sharedPreferences.edit().remove(KEY_SELECTED_PROJECT_IDS).apply()
     }
 
-    // Fungsi untuk menghapus semua data sesi saat logout
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
     }

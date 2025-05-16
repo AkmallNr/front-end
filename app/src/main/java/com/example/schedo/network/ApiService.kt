@@ -189,7 +189,8 @@ data class ProjectRequest(
     val name: String,
     val description: String,
     val startDate: String?,
-    val endDate: String
+    val endDate: String,
+    val groupId: Int? = null // Add groupId to allow updating the group
 )
 
 data class TaskRequest(
