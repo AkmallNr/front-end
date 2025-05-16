@@ -45,7 +45,8 @@ fun AddTodoScreen(
     projectId: Int? = null,
     project: Project? = null,
     groupId: Int? = null,
-    userId: Int? = null
+    userId: Int? = null,
+    onDismiss: () -> Unit // Parameter untuk menutup modal
 ) {
     val context = LocalContext.current
     val preferencesHelper = remember { PreferencesHelper(context) }
@@ -216,9 +217,7 @@ fun AddTodoScreen(
                 TextButton(
                     onClick = {
                         showSuccessDialog = false
-                        navController.navigate(BottomNavItem.JADWAL.route) {
-                            popUpTo("add_todo") { inclusive = true }
-                        }
+                        onDismiss() // Tutup modal setelah menyimpan
                         selectedGroup = null
                         projectName = ""
                         description = ""
@@ -243,7 +242,7 @@ fun AddTodoScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (showProjectModal) {
             ModalBottomSheet(
-                onDismissRequest = { showProjectModal = false },
+                onDismissRequest = { showProjectModal = false; onDismiss() },
                 sheetState = rememberModalBottomSheetState(),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -265,7 +264,7 @@ fun AddTodoScreen(
                     onAddGroup = { /* Handle add group */ },
                     onGroupsUpdated = { fetchGroups() },
                     onSave = { saveProject() },
-                    onDismiss = { showProjectModal = false },
+                    onDismiss = { showProjectModal = false; onDismiss() },
                     isLoading = isLoading,
                     errorMessage = errorMessage,
                     userId = currentUserId

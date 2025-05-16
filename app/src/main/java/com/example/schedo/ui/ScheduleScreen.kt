@@ -11,34 +11,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,15 +26,15 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
 import com.example.schedo.util.PreferencesHelper
-import com.example.schedo.model.Schedule
+import com.example.schedo.ui.formatDateRange
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
-import com.example.schedo.ui.formatDateRange
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.text.DateFormatSymbols
@@ -75,7 +48,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val preferencesHelper = PreferencesHelper(context)
     val userId = preferencesHelper.getUserId()
 
-    // Periksa apakah pengguna sudah login
+    var showAddTodo by remember { mutableStateOf(false) }
+
     if (userId == -1) {
         LaunchedEffect(Unit) {
             Toast.makeText(context, "Silahkan login terlebih dahulu", Toast.LENGTH_LONG).show()
@@ -101,7 +75,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val backgroundColor = Background
     val selectedTabColor = Color(0xFFFFC278)
 
-    // Fungsi untuk mengambil jadwal dari API
     fun fetchSchedules() {
         coroutineScope.launch {
             isLoading = true
@@ -119,7 +92,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         }
     }
 
-    // Fungsi untuk mengambil grup dari API
     fun fetchGroups() {
         coroutineScope.launch {
             isLoading = true
@@ -137,7 +109,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         }
     }
 
-    // Fungsi untuk mengambil proyek dari API
     fun fetchProjects() {
         coroutineScope.launch {
             isLoading = true
@@ -159,7 +130,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         }
     }
 
-    // Ambil data saat layar pertama kali dimuat
     LaunchedEffect(key1 = Unit) {
         if (groups.isEmpty()) {
             fetchGroups()
@@ -170,18 +140,18 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         fetchSchedules()
     }
 
-    // Struktur UI utama dengan Scaffold
-    Scaffold(
-        containerColor = backgroundColor
-    ) { paddingValues ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor) // Background diterapkan di sini
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(bottom = 72.dp), // Tambahkan padding bawah untuk menghindari tumpang tindih dengan BottomNavigationBar dari AppNavHost
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
-                // Tab untuk memilih antara Project dan Schedule
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -205,7 +175,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     )
                 }
 
-                // Baris untuk tombol kembali dan judul
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -245,29 +214,27 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     }
                 }
 
-                // Konten berdasarkan tab yang dipilih
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
                         navController = navController,
                         onProjectClick = { project -> selectedProject = project },
                         onEditClick = { project ->
-                            println("Tombol edit diklik untuk proyek ${project.id} grup ${project.groupId}")
-                            navController.navigate("add_todo/$userId/${project.groupId}/${project.id}")
+                            showAddTodo = true
                         },
                         userId = userId,
                         groupId = groupId,
-                        groups = groups
+                        groups = groups,
+                        onShowAddTodo = { showAddTodo = it }
                     )
                     1 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
+                            .padding(horizontal = 16.dp)
                     ) {
-                        // Navigasi minggu
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                                .padding(vertical = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
@@ -302,7 +269,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        // Tampilan hari dalam seminggu
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -334,10 +300,9 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             text = "Jadwal Hari Ini",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(top = 16.dp)
                         )
 
-                        // Tampilan jadwal
                         if (isLoading) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator()
@@ -350,7 +315,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             LazyColumn(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .padding(16.dp),
+                                    .padding(vertical = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(schedules) { schedule ->
@@ -367,19 +332,17 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        // Tombol untuk menambah jadwal
                         Button(
                             onClick = { showAddSchedule = true },
                             modifier = Modifier
                                 .align(Alignment.End)
-                                .padding(16.dp),
+                                .padding(bottom = 16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
                             Text("Tambah Jadwal")
                         }
 
-                        // Dialog untuk menambah atau mengedit jadwal
                         if (showAddSchedule || selectedSchedule != null) {
                             AddScheduleDialog(
                                 navController,
@@ -402,9 +365,28 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 )
             }
         }
+
+        if (showAddTodo) {
+            ModalBottomSheet(
+                onDismissRequest = { showAddTodo = false },
+                sheetState = rememberModalBottomSheetState(),
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrimColor = Color.Black.copy(alpha = 0.5f)
+            ) {
+                AddTodoScreen(
+                    navController = navController,
+                    projectId = projectId,
+                    groupId = groupId,
+                    userId = userId,
+                    onDismiss = { showAddTodo = false }
+                )
+            }
+        }
     }
 }
 
+// Fungsi lainnya (ScheduleCard, AddScheduleDialog, getWeekStartDate, getWeekDates, TabButton, dll.) tetap sama seperti sebelumnya
 @Composable
 fun ScheduleCard(schedule: Schedule, userId: Int, groupId: Int, onAction: (String) -> Unit) {
     Card(
@@ -554,7 +536,8 @@ fun ProjectContentWithData(
     onEditClick: (Project) -> Unit,
     userId: Int,
     groupId: Int,
-    groups: List<Group>
+    groups: List<Group>,
+    onShowAddTodo: (Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -597,7 +580,7 @@ fun ProjectContentWithData(
                     .size(100.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable {
-                        navController.navigate("add_todo/$userId/$groupId/-1")
+                        onShowAddTodo(true)
                     },
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFC278))
             ) {
@@ -623,10 +606,8 @@ fun ProjectContentWithData(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Tampilkan setiap proyek sebagai kartu individual
             items(projects.size) { index ->
                 val project = projects[index]
-                // Cari grup terkait proyek ini
                 val group = groups.find { it.id == project.groupId }
                 if (group != null) {
                     ProjectCard(
@@ -643,7 +624,6 @@ fun ProjectContentWithData(
                 }
             }
 
-            // Tombol untuk menambah proyek baru
             item {
                 Card(
                     modifier = Modifier
@@ -651,7 +631,7 @@ fun ProjectContentWithData(
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
-                            navController.navigate("add_todo/$userId/$groupId/-1")
+                            onShowAddTodo(true)
                         },
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFC278))
                 ) {
@@ -692,7 +672,6 @@ fun ProjectCard(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Define a mapping for group icons to Material icons
             val iconMapping = mapOf(
                 "fas fa-users" to Icons.Default.Group,
                 "fas fa-folder" to Icons.Default.Folder,
@@ -721,7 +700,6 @@ fun ProjectCard(
                 "fas fa-person" to Icons.Default.Person
             )
 
-            // Select icon and tint based on group.icon or fallback to a default
             val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Edit
             val tint = when (group.name?.lowercase() ?: group.icon?.lowercase() ?: "") {
                 "office project", "laptop" -> Color(0xFFFF6F61)
@@ -848,8 +826,6 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                         )
                         Row {
                             IconButton(onClick = {
-                                // Navigasi ke AddTodoScreen dengan groupId asli proyek
-                                println("Navigasi ke edit project dengan userId: $userId, groupId: $groupId, projectId: $projectId")
                                 navController.navigate("add_todo/$userId/$groupId/$projectId")
                             }) {
                                 Icon(
