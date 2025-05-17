@@ -1,5 +1,7 @@
 package com.example.schedo.model
 
+
+
 data class Task (
     val id: Int? = null,
     val name: String,
@@ -10,5 +12,11 @@ data class Task (
     val attachment: List<String>? = null,
     val status: Boolean? =null,
     val quoteId: Int? = null
+)
 
+data class Attachment(
+    val id: Int,
+    val taskId: Int,
+    val file_name: String,
+    val file_url: String
 )

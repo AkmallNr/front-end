@@ -8,6 +8,7 @@ import com.example.schedo.model.Task
 import com.example.schedo.model.UserListResponse
 import com.example.schedo.response.*
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -154,8 +155,12 @@ interface ApiService {
         @Path("id") id: Int
     ): Response<Unit>
 
-
-
+    @Multipart
+    @POST("upload-file")
+    suspend fun uploadFile(
+        @Part file: MultipartBody.Part?,
+        @Part("link") link: RequestBody?
+    ): Response<FileUploadResponse>
 
     // 🔹 Endpoint baru: Login dengan Google
     @POST("users/{userId}/google-login")
@@ -164,6 +169,18 @@ interface ApiService {
         @Body token: Map<String, String?>
     ): Response<User>
 }
+
+data class FileUploadResponse(
+    val success: Boolean,
+    val data: FileUploadData,
+    val message: String
+)
+
+data class FileUploadData(
+    val file_url: String?,
+    val file_name: String?,
+    val link: String?
+)
 
 data class ScheduleRequest(
     val name: String,

@@ -41,6 +41,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
+import com.example.schedo.model.Attachment
 import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
@@ -778,8 +779,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                                 deadline = task.deadline,
                                                 reminder = task.reminder,
                                                 priority = task.priority ?: "Normal",
-                                                attachment = task.attachment,
-                                                status = updatedTask.status
+                                                attachment = task.attachment?.map { it.file_url  }, // Konversi ke List<String>?                                                status = updatedTask.status
                                             )
                                         )
                                         if (response.isSuccessful) {

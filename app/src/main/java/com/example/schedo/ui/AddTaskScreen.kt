@@ -52,6 +52,10 @@ import com.google.auth.http.HttpCredentialsAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File as JavaFile
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 suspend fun uploadFileToDrive(
     context: Context,
@@ -241,7 +245,6 @@ fun AddTaskScreen(
             quotes = quoteResponse
         } catch (e: Exception) {
             e.printStackTrace()
-            // Show error toast
             Toast.makeText(
                 context,
                 "Gagal memuat quotes: ${e.localizedMessage}",
@@ -284,11 +287,6 @@ fun AddTaskScreen(
             }
         )
     }
-
-    // ID folder untuk "image" dan "pdf" di Google Drive
-    val imageFolderId = "1CVmSom-5q4DW5_WtHChVLq7JthcwQR7h" // Ganti dengan ID folder "image"
-    val pdfFolderId = "1hUwlfEyg04tq8-Zlusmb2MFJOFqD1upo"     // Ganti dengan ID folder "pdf"
-
 
     Scaffold(
         topBar = {
@@ -351,8 +349,6 @@ fun AddTaskScreen(
                     }
                 )
 
-
-
                 if (note.isEmpty()) {
                     EnhancedTaskOptionRow(
                         icon = { Icon(Icons.Default.Note, contentDescription = "Note") },
@@ -386,7 +382,6 @@ fun AddTaskScreen(
                     onPrioritySelected = { priority = it }
                 )
 
-                // Add Quote section here after Priority
                 if (isLoadingQuotes) {
                     Box(
                         modifier = Modifier
@@ -414,60 +409,82 @@ fun AddTaskScreen(
                             Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        println("user id : ${userId}, group id : ${groupId}, project id ${projectId}")
-
-                        val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
-                        val taskRequest = TaskRequest(
-                            id = task?.id,
-                            name = taskTitle.text.trim(),
-                            description = note.trim(),
-                            deadline = dateFormat.format(selectedDeadlineDate),
-                            reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
-                            priority = priority,
-                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
-                            status = task?.status ?: false
-                        )
 
                         scope.launch {
                             android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
-                            // Mengunggah file ke Google Drive menggunakan Service Account
+                            // Mengunggah file atau link ke backend Laravel
                             val uploadedAttachments = mutableListOf<String>()
                             android.util.Log.d("AddTaskScreen", "Jumlah lampiran: ${attachmentList?.size ?: 0}")
                             attachmentList?.forEach { (fileName, uri) ->
-                                android.util.Log.d("AddTaskScreen", "Mengunggah file: $fileName dengan URI: $uri")
-                                if (!isUrl(fileName)) {
-                                    android.util.Log.d("AddTaskScreen", "File bukan URL, mengunggah ke Google Drive")
-                                    val driveUrl = uploadFileToDrive(context, uri, fileName, imageFolderId, pdfFolderId)
-                                    if (driveUrl != null) {
-                                        uploadedAttachments.add(driveUrl)
-                                        android.util.Log.d("AddTaskScreen", "Berhasil mengunggah $fileName: $driveUrl")
-                                    } else {
-                                        android.util.Log.e("AddTaskScreen", "Gagal mengunggah $fileName")
-                                        Toast.makeText(
-                                            context,
-                                            "Gagal mengunggah $fileName. Periksa Logcat untuk detail.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                android.util.Log.d("AddTaskScreen", "Mengunggah: $fileName dengan URI: $uri")
+                                if (isUrl(fileName)) {
+                                    // Jika lampiran adalah URL, kirim sebagai link
+                                    try {
+                                        val linkRequestBody = fileName.toRequestBody("text/plain".toMediaTypeOrNull())
+                                        val response = RetrofitInstance.api.uploadFile(file = null, link = linkRequestBody)
+                                        if (response.isSuccessful && response.body()?.success == true) {
+                                            response.body()?.data?.link?.let { uploadedAttachments.add(it) }
+                                            android.util.Log.d("AddTaskScreen", "Link berhasil diunggah: $fileName")
+                                        } else {
+                                            val errorMessage = "Gagal mengunggah link: ${response.code()} - ${response.message()}"
+                                            android.util.Log.e("AddTaskScreen", errorMessage)
+                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("AddTaskScreen", "Error mengunggah link: ${e.message}", e)
+                                        Toast.makeText(context, "Error mengunggah link: ${e.message}", Toast.LENGTH_LONG).show()
                                     }
                                 } else {
-                                    uploadedAttachments.add(fileName)
-                                    android.util.Log.d("AddTaskScreen", "Lampiran adalah URL: $fileName")
+                                    // Jika lampiran adalah file, unggah ke backend
+                                    try {
+                                        val contentResolver = context.contentResolver
+                                        val inputStream = contentResolver.openInputStream(uri)
+                                        if (inputStream == null) {
+                                            android.util.Log.e("AddTaskScreen", "Gagal membuka input stream untuk URI: $uri")
+                                            Toast.makeText(context, "Gagal membuka file: $fileName", Toast.LENGTH_LONG).show()
+                                            return@forEach
+                                        }
+
+                                        val tempFile = JavaFile(context.cacheDir, fileName)
+                                        inputStream.use { input ->
+                                            tempFile.outputStream().use { output ->
+                                                input.copyTo(output)
+                                            }
+                                        }
+
+                                        val requestFile = tempFile.asRequestBody(getMimeType(fileName)?.toMediaTypeOrNull())
+                                        val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
+                                        val response = RetrofitInstance.api.uploadFile(file = filePart, link = null)
+
+                                        if (response.isSuccessful && response.body()?.success == true) {
+                                            response.body()?.data?.file_url?.let { uploadedAttachments.add(it) }
+                                            android.util.Log.d("AddTaskScreen", "File berhasil diunggah: $fileName, URL: ${response.body()?.data?.file_url}")
+                                        } else {
+                                            val errorMessage = "Gagal mengunggah file: ${response.code()} - ${response.message()}"
+                                            android.util.Log.e("AddTaskScreen", errorMessage)
+                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                        }
+                                        tempFile.delete()
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("AddTaskScreen", "Error mengunggah file: ${e.message}", e)
+                                        Toast.makeText(context, "Error mengunggah file: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
 
                             android.util.Log.d("AddTaskScreen", "Semua lampiran selesai diunggah: $uploadedAttachments")
                             val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                             val taskRequest = TaskRequest(
+                                id = taskId,
                                 name = taskTitle.text.trim(),
-                                description = note.trim(),
+                                description = note.trim().takeIf { it.isNotBlank() },
                                 deadline = dateFormat.format(selectedDeadlineDate),
-                                reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
+                                reminder = if (reminder == "Tidak") null else dateFormat.format(selectedReminderDate),
                                 priority = priority,
-                                attachment = uploadedAttachments,
-                                status = false,
+                                attachment = uploadedAttachments.takeIf { it.isNotEmpty() },
+                                status = task?.status ?: false,
                                 quoteId = selectedQuote?.id
                             )
-
 
                             try {
                                 val response = if (taskId == null) {
