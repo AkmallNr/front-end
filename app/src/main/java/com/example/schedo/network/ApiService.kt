@@ -165,6 +165,13 @@ interface ApiService {
     suspend fun loginWithGoogle(
         @Body token: Map<String, String>
     ): Response<LoginResponse>
+
+    @PUT("users/{userId}/groups/{groupId}")
+    suspend fun updateGroup(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Body groupRequest: GroupRequest
+    ): Response<GroupResponse>
 }
 
 data class ScheduleRequest(
