@@ -390,11 +390,13 @@ fun UserManagementScreen(navController: NavHostController) {
                 onEdit = { updatedGroup ->
                     coroutineScope.launch {
                         try {
-                            userGroups = userGroups.map {
-                                if (it.id == updatedGroup.id) updatedGroup else it
-                            }
+                            // Refresh group list from server after update
+                            val groupsResponse = RetrofitInstance.api.getGroups(userId)
+                            userGroups = groupsResponse.data ?: emptyList()
+                            Log.d("GroupOptionsDialog", "Refreshed group list after update: ${userGroups.size} groups")
                         } catch (e: Exception) {
                             errorMessage = "Gagal memperbarui grup: ${e.message}"
+                            Log.e("GroupOptionsDialog", "Failed to refresh group list: ${e.message}", e)
                         }
                         showGroupOptionsDialog = false
                         showEditGroupDialog = false
@@ -406,8 +408,10 @@ fun UserManagementScreen(navController: NavHostController) {
                             selectedGroup!!.id?.let { RetrofitInstance.api.deleteGroup(userId, it) }
                             val groupsResponse = RetrofitInstance.api.getGroups(userId)
                             userGroups = groupsResponse.data ?: emptyList()
+                            Log.d("GroupOptionsDialog", "Refreshed group list after delete: ${userGroups.size} groups")
                         } catch (e: Exception) {
                             errorMessage = "Gagal menghapus grup: ${e.message}"
+                            Log.e("GroupOptionsDialog", "Failed to refresh group list after delete: ${e.message}", e)
                         }
                         showGroupOptionsDialog = false
                     }
@@ -790,18 +794,26 @@ fun EditGroupDialog(
                         coroutineScope.launch {
                             try {
                                 val groupRequest = GroupRequest(name = name, icon = selectedIcon)
+                                Log.d("EditGroupDialog", "Attempting to update group ID: ${group.id}, User ID: $userId, Name: $name, Icon: $selectedIcon")
                                 val response = group.id?.let {
                                     RetrofitInstance.api.updateGroup(userId, it, groupRequest)
                                 }
                                 if (response != null) {
                                     if (response.isSuccessful) {
                                         val updatedGroup = response.body()!!
+                                        Log.d("EditGroupDialog", "Group updated successfully: ${updatedGroup.id}, Name: ${updatedGroup.name}, Icon: ${updatedGroup.icon}")
                                         onGroupUpdated(updatedGroup)
                                     } else {
-                                        errorMessage = "Gagal memperbarui grup: ${response.message()}"
+                                        val errorBody = response.errorBody()?.string() ?: "No error body"
+                                        Log.e("EditGroupDialog", "Failed to update group. HTTP Code: ${response.code()}, Message: ${response.message()}, Error Body: $errorBody")
+                                        errorMessage = "Gagal memperbarui grup: ${response.message()} (Code: ${response.code()})"
                                     }
+                                } else {
+                                    Log.e("EditGroupDialog", "Group ID is null, cannot update group")
+                                    errorMessage = "Gagal memperbarui grup: ID grup tidak valid"
                                 }
                             } catch (e: Exception) {
+                                Log.e("EditGroupDialog", "Exception during group update: ${e.message}", e)
                                 errorMessage = "Error: ${e.message}"
                             } finally {
                                 isLoading = false
@@ -809,6 +821,7 @@ fun EditGroupDialog(
                         }
                         keyboardController?.hide()
                     } else {
+                        Log.w("EditGroupDialog", "Group name is empty or update is already in progress")
                         errorMessage = "Nama grup tidak boleh kosong"
                     }
                 },
