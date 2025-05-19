@@ -26,11 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
-import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
-import com.example.schedo.util.PreferencesHelper
 import com.example.schedo.ui.formatDateRange
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
