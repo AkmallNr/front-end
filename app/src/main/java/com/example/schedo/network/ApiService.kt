@@ -187,7 +187,7 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int,
         @Body groupRequest: GroupRequest
-    ): Response<GroupResponse>
+    ): Response<Group>
 }
 
 data class FileUploadResponse(
