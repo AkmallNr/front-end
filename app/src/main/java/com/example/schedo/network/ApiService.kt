@@ -81,6 +81,14 @@ interface ApiService {
         @Path("projectId") projectId: Int
     ): TaskResponse
 
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
+    suspend fun getTaskById(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Path("taskId") taskId: Int
+    ): TaskResponse
+
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun updateTask(
         @Path("userId") userId: Int,

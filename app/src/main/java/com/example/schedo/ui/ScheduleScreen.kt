@@ -779,7 +779,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                                 deadline = task.deadline,
                                                 reminder = task.reminder,
                                                 priority = task.priority ?: "Normal",
-                                                attachment = task.attachment?.map { it.file_url  }, // Konversi ke List<String>?                                                status = updatedTask.status
+                                                attachment = task.attachment, // Konversi ke List<String>?                                                status = updatedTask.status
                                             )
                                         )
                                         if (response.isSuccessful) {

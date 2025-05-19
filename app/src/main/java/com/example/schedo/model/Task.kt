@@ -1,7 +1,5 @@
 package com.example.schedo.model
 
-
-
 data class Task (
     val id: Int? = null,
     val name: String,

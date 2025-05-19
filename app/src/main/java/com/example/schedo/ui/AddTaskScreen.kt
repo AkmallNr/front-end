@@ -41,7 +41,6 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import kotlinx.coroutines.launch
-//import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import com.google.api.services.drive.DriveScopes
@@ -56,6 +55,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.google.gson.Gson
 
 suspend fun uploadFileToDrive(
     context: Context,
@@ -155,10 +155,13 @@ fun getFileNameFromUri(context: Context, uri: Uri): String? {
     }
 }
 
+fun getFileNameFromUrl(url: String): String {
+    return url.substringAfterLast("/", "UnnamedFile")
+}
+
 fun isUrl(text: String): Boolean {
     return text.startsWith("http://") || text.startsWith("https://")
 }
-
 
 @Composable
 fun TimePickerDialog(
@@ -190,6 +193,7 @@ fun AddTaskScreen(
     android.util.Log.d("AddTaskScreen", "Received taskId: $taskId, isNull: ${taskId == null}")
     val context = LocalContext.current
     var taskTitle by remember { mutableStateOf(TextFieldValue(task?.name ?: "")) }
+    val uploadedAttachments = remember { mutableStateListOf<String>() }
     var note by remember { mutableStateOf(task?.description ?: "") }
     var reminder by remember { mutableStateOf(task?.reminder ?: "Tidak") }
     var priority by remember { mutableStateOf(task?.priority ?: "Normal") }
@@ -210,12 +214,15 @@ fun AddTaskScreen(
 
     var selectedDeadlineDate by remember {
         mutableStateOf(
-            SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(Calendar.getInstance().time))
+            SimpleDateFormat("yyyy/MM/dd HH:mm").parse(
+                task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(Calendar.getInstance().time)
+            )
         )
     }
     var selectedReminderDate by remember {
         mutableStateOf(
-            if (task?.reminder != null && task.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task.reminder) else Calendar.getInstance().time
+            if (task?.reminder != null && task.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task.reminder)
+            else Calendar.getInstance().time
         )
     }
 
@@ -229,27 +236,75 @@ fun AddTaskScreen(
     val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             android.util.Log.d("AttachmentDialog", "File dipilih: $uri")
-            val fileName = getFileNameFromUri(context, it) ?: "UnnamedFile"
+            val fileName = getFileNameFromUri(context, it) ?: "UnnamedFile_${System.currentTimeMillis()}"
             attachmentList = (attachmentList ?: emptyList()) + listOf(fileName to it)
             android.util.Log.d("AttachmentDialog", "Lampiran ditambahkan: $fileName")
         } ?: android.util.Log.d("AttachmentDialog", "URI null, tidak ada file yang dipilih")
     }
 
     val scope = rememberCoroutineScope()
+    val apiService = RetrofitInstance.api
+
+    // Muat tugas jika dalam mode edit
+    LaunchedEffect(taskId) {
+        if (taskId != null && taskId != -1) {
+            try {
+                // Coba gunakan getTaskById jika tersedia
+                    val response = apiService.getTaskById(userId, groupId, projectId, taskId).data
+                    android.util.Log.d("AddTaskScreen", "Mencoba getTaskById untuk taskId: $taskId")
+//                } catch (e: Exception) {
+//                    android.util.Log.w("AddTaskScreen", "getTaskById tidak tersedia, mencoba getTask: ${e.message}")
+//                    apiService.getTask(userId, groupId, projectId)
+//                }
+
+                android.util.Log.d("AddTaskScreen", "Respons API: ${Gson().toJson(response)}")
+
+                val taskToEdit = if (response is List<*>) {
+                    (response as List<Task>).find { it.id == taskId }
+                } else {
+                    response as Task?
+                }
+
+                if (taskToEdit != null) {
+                    taskTitle = TextFieldValue(taskToEdit.name ?: "")
+                    note = taskToEdit.description ?: ""
+                    priority = taskToEdit.priority ?: "Normal"
+                    reminder = taskToEdit.reminder ?: "Tidak"
+                    taskToEdit.deadline?.let {
+                        selectedDeadlineDate = SimpleDateFormat("yyyy/MM/dd HH:mm").parse(it) ?: Calendar.getInstance().time
+                    }
+                    taskToEdit.reminder?.let {
+                        if (it != "Tidak") {
+                            selectedReminderDate = SimpleDateFormat("yyyy/MM/dd HH:mm").parse(it) ?: Calendar.getInstance().time
+                        }
+                    }
+                    // Inisialisasi attachmentList dengan lampiran yang sudah ada
+                    taskToEdit.attachment?.let { urls ->
+                        attachmentList = urls.map { url ->
+                            Pair(getFileNameFromUrl(url), Uri.parse(url))
+                        }
+                    }
+                    android.util.Log.d("AddTaskScreen", "Tugas dimuat: $taskToEdit, Lampiran: ${taskToEdit.attachment}")
+                } else {
+                    android.util.Log.e("AddTaskScreen", "Tugas dengan ID $taskId tidak ditemukan dalam respons")
+                    Toast.makeText(context, "Tugas tidak ditemukan", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddTaskScreen", "Gagal memuat tugas: ${e.message}", e)
+                Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Fetch quotes when screen is displayed
     LaunchedEffect(userId) {
         isLoadingQuotes = true
         try {
-            val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
+            val quoteResponse = apiService.getQuotes(userId).data
             quotes = quoteResponse
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(
-                context,
-                "Gagal memuat quotes: ${e.localizedMessage}",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(context, "Gagal memuat quotes: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
         isLoadingQuotes = false
     }
@@ -261,27 +316,13 @@ fun AddTaskScreen(
             onAddQuote = { content ->
                 scope.launch {
                     try {
-                        RetrofitInstance.api.addQuotes(
-                            userId = userId,
-                            quoteRequest = QuoteRequest(content = content)
-                        )
-
-                        // Refresh quotes list
-                        val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
+                        apiService.addQuotes(userId = userId, quoteRequest = QuoteRequest(content = content))
+                        val quoteResponse = apiService.getQuotes(userId).data
                         quotes = quoteResponse
-
-                        Toast.makeText(
-                            context,
-                            "Quote berhasil ditambahkan!",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        Toast.makeText(context, "Quote berhasil ditambahkan!", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        Toast.makeText(
-                            context,
-                            "Gagal menambahkan quote: ${e.localizedMessage}",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        Toast.makeText(context, "Gagal menambahkan quote: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -413,18 +454,19 @@ fun AddTaskScreen(
                         scope.launch {
                             android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
                             // Mengunggah file atau link ke backend Laravel
-                            val uploadedAttachments = mutableListOf<String>()
+                            uploadedAttachments.clear()
                             android.util.Log.d("AddTaskScreen", "Jumlah lampiran: ${attachmentList?.size ?: 0}")
                             attachmentList?.forEach { (fileName, uri) ->
                                 android.util.Log.d("AddTaskScreen", "Mengunggah: $fileName dengan URI: $uri")
-                                if (isUrl(fileName)) {
+                                if (isUrl(fileName) || uri.toString().startsWith("https://") || uri.toString().startsWith("http://")) {
                                     // Jika lampiran adalah URL, kirim sebagai link
+                                    val link = if (isUrl(fileName)) fileName else uri.toString()
                                     try {
-                                        val linkRequestBody = fileName.toRequestBody("text/plain".toMediaTypeOrNull())
-                                        val response = RetrofitInstance.api.uploadFile(file = null, link = linkRequestBody)
+                                        val linkRequestBody = link.toRequestBody("text/plain".toMediaTypeOrNull())
+                                        val response = apiService.uploadFile(file = null, link = linkRequestBody)
                                         if (response.isSuccessful && response.body()?.success == true) {
                                             response.body()?.data?.link?.let { uploadedAttachments.add(it) }
-                                            android.util.Log.d("AddTaskScreen", "Link berhasil diunggah: $fileName")
+                                            android.util.Log.d("AddTaskScreen", "Link berhasil diunggah: $link")
                                         } else {
                                             val errorMessage = "Gagal mengunggah link: ${response.code()} - ${response.message()}"
                                             android.util.Log.e("AddTaskScreen", errorMessage)
@@ -454,7 +496,7 @@ fun AddTaskScreen(
 
                                         val requestFile = tempFile.asRequestBody(getMimeType(fileName)?.toMediaTypeOrNull())
                                         val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
-                                        val response = RetrofitInstance.api.uploadFile(file = filePart, link = null)
+                                        val response = apiService.uploadFile(file = filePart, link = null)
 
                                         if (response.isSuccessful && response.body()?.success == true) {
                                             response.body()?.data?.file_url?.let { uploadedAttachments.add(it) }
@@ -488,9 +530,9 @@ fun AddTaskScreen(
 
                             try {
                                 val response = if (taskId == null) {
-                                    RetrofitInstance.api.addTaskToProject(userId, groupId, projectId, taskRequest)
+                                    apiService.addTaskToProject(userId, groupId, projectId, taskRequest)
                                 } else {
-                                    RetrofitInstance.api.updateTask(userId, groupId, projectId, taskId, taskRequest)
+                                    apiService.updateTask(userId, groupId, projectId, taskId, taskRequest)
                                 }
                                 if (response.isSuccessful) {
                                     Toast.makeText(context, if (taskId == null) "Tugas berhasil disimpan!" else "Tugas berhasil diperbarui!", Toast.LENGTH_SHORT).show()
@@ -928,7 +970,7 @@ fun NoteSection(note: String, onClick: () -> Unit) {
 
 @Composable
 fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -970,18 +1012,14 @@ fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () ->
                 .padding(start = 56.dp, end = 16.dp, bottom = 16.dp)
         ) {
             Column {
-                attachmentList.forEach { (attachmentName, _) ->
+                attachmentList.forEach { (attachmentName, uri) ->
                     Text(
-                        text = if (isUrl(attachmentName)) {
-                            if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName
-                        } else {
-                            if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName
-                        },
+                        text = if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName,
                         fontSize = 16.sp,
                         modifier = Modifier.padding(8.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isUrl(uri)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -999,7 +1037,6 @@ fun AddQuoteDialog(
     onAddQuote: (String) -> Unit
 ) {
     var quoteContent by remember { mutableStateOf(TextFieldValue("")) }
-
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1239,7 +1276,7 @@ fun AttachmentDialogContent(
                 Button(
                     onClick = {
                         if (tempAttachment.isNotEmpty()) {
-                            currentList = currentList + (tempAttachment to Uri.parse(tempAttachment))
+                            currentList = currentList + (getFileNameFromUrl(tempAttachment) to Uri.parse(tempAttachment))
                             onUpdate(currentList)
                             tempAttachment = ""
                             isLink = false
@@ -1319,8 +1356,6 @@ fun AttachmentDialogContent(
         }
     )
 }
-
-
 
 private fun getMimeType(url: String): String? {
     val extension = url.substringAfterLast(".", "").lowercase()
