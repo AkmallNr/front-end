@@ -9,25 +9,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Laptop
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.User
@@ -45,7 +36,6 @@ import com.example.schedo.ui.theme.Background
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.schedo.ui.formatDateRange
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
@@ -60,9 +50,10 @@ fun HomeScreen(navController: NavHostController) {
     var isLoading by remember { mutableStateOf(false) }
     var shouldRefreshUserData by remember { mutableStateOf(false) }
 
-    // All available projects
+    // All available projects, groups, and tasks
     val allProjects = remember { mutableStateListOf<Project>() }
     val allTasks = remember { mutableStateListOf<Task>() }
+    val groups = remember { mutableStateListOf<Group>() }
 
     // Projects selected for display on home screen
     val selectedProjects = remember { mutableStateListOf<Project>() }
@@ -97,17 +88,16 @@ fun HomeScreen(navController: NavHostController) {
                         }
                     } else {
                         Log.w("HomeScreen", "User not found for userId: $userId")
-                        // Jika user tidak ditemukan, anggap sebagai guest
                         user = null
                     }
                 } else {
                     Log.e("HomeScreen", "Failed to fetch users: ${response.errorBody()?.string()}")
-                    user = null // Anggap sebagai guest jika gagal
+                    user = null
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("HomeScreen", "Error fetching users: ${e.message}")
-                user = null // Anggap sebagai guest jika error
+                user = null
             } finally {
                 isLoading = false
             }
@@ -141,6 +131,24 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
+    // Define fetchGroups function
+    fun fetchGroups() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getGroups(userId).data
+                groups.clear()
+                groups.addAll(response)
+                Log.d("HomeScreen", "Groups fetched successfully: ${groups.size} groups")
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Failed to fetch groups: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
     // Define fetchTask function
     fun fetchTask() {
         coroutineScope.launch {
@@ -149,10 +157,10 @@ fun HomeScreen(navController: NavHostController) {
                 val response = RetrofitInstance.api.getTaskByUser(userId).data
                 allTasks.clear()
                 allTasks.addAll(response)
-                println("Task fetched successfully: ${allTasks.size} task for userId: $userId")
-                println("isi Task: ${allTasks}")
+                Log.d("HomeScreen", "Tasks fetched successfully: ${allTasks.size} tasks for userId: $userId")
             } catch (e: Exception) {
                 e.printStackTrace()
+                Log.e("HomeScreen", "Error fetching tasks: ${e.message}")
             } finally {
                 isLoading = false
             }
@@ -161,17 +169,18 @@ fun HomeScreen(navController: NavHostController) {
 
     // Define logout function
     fun logout() {
-        preferencesHelper.clearSession() // Hapus semua data sesi
+        preferencesHelper.clearSession()
         navController.navigate("login") {
             popUpTo(navController.graph.startDestinationId) { inclusive = true }
         }
     }
 
-    // Load saved selected project IDs on initialization
+    // Load data on initialization
     LaunchedEffect(Unit) {
         if (userId != -1) {
             fetchUserData()
             fetchProjects()
+            fetchGroups()
             fetchTask()
         }
     }
@@ -306,7 +315,7 @@ fun HomeScreen(navController: NavHostController) {
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Completed tasks card - smaller version
+                    // Completed tasks card
                     Card(
                         modifier = Modifier
                             .weight(1f)
@@ -329,9 +338,7 @@ fun HomeScreen(navController: NavHostController) {
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-
                             Spacer(modifier = Modifier.height(2.dp))
-
                             Text(
                                 "Tugas Selesai",
                                 fontSize = 12.sp,
@@ -341,7 +348,7 @@ fun HomeScreen(navController: NavHostController) {
                         }
                     }
 
-                    // Pending tasks card - smaller version
+                    // Pending tasks card
                     Card(
                         modifier = Modifier
                             .weight(1f)
@@ -364,9 +371,7 @@ fun HomeScreen(navController: NavHostController) {
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
-
                             Spacer(modifier = Modifier.height(2.dp))
-
                             Text(
                                 "Tugas Tertunda",
                                 fontSize = 12.sp,
@@ -393,7 +398,6 @@ fun HomeScreen(navController: NavHostController) {
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
-
                         Text(
                             "${selectedProjects.size}",
                             fontSize = 14.sp,
@@ -404,8 +408,7 @@ fun HomeScreen(navController: NavHostController) {
 
                     IconButton(
                         onClick = { showProjectSelectionDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
@@ -442,10 +445,18 @@ fun HomeScreen(navController: NavHostController) {
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(selectedProjects) { project ->
-                            ProjectCard(
+                            val group = groups.find { it.id == project.groupId } ?: Group(
+                                id = -1,
+                                name = "Unknown",
+                                icon = "fas fa-users"
+                            )
+                            ProjectCard1(
                                 project = project,
+                                group = group,
                                 onClick = {
-                                    navController.navigate("schedule/${userId}/${project.groupId ?: 0}/${project.id ?: 0}")
+                                    val groupId = project.groupId ?: 0
+                                    val projectId = project.id ?: 0
+                                    navController.navigate("project_detail/$userId/$groupId/$projectId")
                                 }
                             )
                         }
@@ -518,9 +529,9 @@ fun ProjectSelectionDialog(
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                 // Dynamic height with scrollable LazyColumn
-                val maxHeight = 400.dp // Maximum height before scrolling
-                val itemHeight = 48.dp // Estimated height per project item
-                val dynamicHeight = minOf(maxHeight, itemHeight * allProjects.size.coerceAtMost(8)) // Limit to 8 items visible
+                val maxHeight = 400.dp
+                val itemHeight = 48.dp
+                val dynamicHeight = minOf(maxHeight, itemHeight * allProjects.size.coerceAtMost(8))
 
                 LazyColumn(
                     modifier = Modifier
@@ -598,8 +609,9 @@ fun ProjectSelectionDialog(
 }
 
 @Composable
-fun ProjectCard(
+fun ProjectCard1(
     project: Project,
+    group: Group,
     onClick: () -> Unit
 ) {
     val projectColor = when ((project.id ?: 0) % 3) {
@@ -607,6 +619,37 @@ fun ProjectCard(
         1 -> Color(0xFFA0C4FF) to Color(0xFFD0E0FF) // Blue
         else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0) // Green
     }
+
+    // Icon mapping seperti di ScheduleScreen
+    val iconMapping = mapOf(
+        "fas fa-users" to Icons.Default.Group,
+        "fas fa-folder" to Icons.Default.Folder,
+        "fas fa-star" to Icons.Default.Star,
+        "fas fa-home" to Icons.Default.Home,
+        "fas fa-tasks" to Icons.Default.List,
+        "fas fa-calendar" to Icons.Default.CalendarMonth,
+        "fas fa-book" to Icons.Default.Book,
+        "fas fa-bell" to Icons.Default.Notifications,
+        "fas fa-heart" to Icons.Default.Favorite,
+        "fas fa-check" to Icons.Default.CheckCircle,
+        "fas fa-envelope" to Icons.Default.Email,
+        "fas fa-image" to Icons.Default.Image,
+        "fas fa-file" to Icons.Default.Description,
+        "fas fa-clock" to Icons.Default.AccessTime,
+        "fas fa-cog" to Icons.Default.Settings,
+        "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+        "fas fa-tag" to Icons.Default.LocalOffer,
+        "fas fa-link" to Icons.Default.Link,
+        "fas fa-map" to Icons.Default.Place,
+        "fas fa-music" to Icons.Default.MusicNote,
+        "fas fa-phone" to Icons.Default.Call,
+        "fas fa-camera" to Icons.Default.PhotoCamera,
+        "fas fa-search" to Icons.Default.Search,
+        "fas fa-cloud" to Icons.Default.Cloud,
+        "fas fa-person" to Icons.Default.Person
+    )
+
+    val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Laptop
 
     Card(
         modifier = Modifier
@@ -630,8 +673,8 @@ fun ProjectCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Laptop,
-                    contentDescription = null,
+                    imageVector = selectedIcon,
+                    contentDescription = "${group.name} Icon",
                     tint = projectColor.first
                 )
             }
@@ -645,24 +688,21 @@ fun ProjectCard(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                // Format the date with the helper function
-                val formattedDate = formatDateRange(project.startDate, project.endDate)
                 Text(
-                    formattedDate,
+                    formatDateRange(project.startDate, project.endDate),
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
             }
 
-            // Calculate the progress properly (or use project.progress if available)
-//            val progress = project.progress?.toFloat()?.div(100f) ?: 0.01f
+            // Progress indicator (hardcoded to 2% as in original)
             Box(
                 modifier = Modifier
                     .size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-//                    progress = { progress },
+                    progress = { 0.02f },
                     modifier = Modifier.size(40.dp),
                     color = projectColor.first,
                     strokeWidth = 3.dp,

@@ -244,6 +244,58 @@ fun AppNavHost(
                     )
                 }
 
+                composable(
+                    "project_detail/{userId}/{groupId}/{projectId}",
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.IntType },
+                        navArgument("groupId") { type = NavType.IntType },
+                        navArgument("projectId") { type = NavType.IntType }
+                    )
+                ) { backStackEntry ->
+                    val args = backStackEntry.arguments
+                    val userId = args?.getInt("userId") ?: -1
+                    val groupId = args?.getInt("groupId") ?: 0
+                    val projectId = args?.getInt("projectId") ?: 0
+
+                    var project by remember { mutableStateOf<Project?>(null) }
+                    var isLoading by remember { mutableStateOf(true) }
+                    val scope = rememberCoroutineScope()
+
+                    LaunchedEffect(key1 = projectId) {
+                        isLoading = true
+                        scope.launch {
+                            try {
+                                val projects = RetrofitInstance.api
+                                    .getProjectsByGroup(userId, groupId)
+                                    .data
+                                project = projects.find { it.id == projectId }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(context, "Failed to load project: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    }
+
+                    if (isLoading) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Utama2)
+                        }
+                    } else if (project != null) {
+                        ProjectDetailScreen(
+                            navController = navController,
+                            project = project!!,
+                            userId = userId,
+                            groupId = groupId
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Project not found", color = Color.Gray)
+                        }
+                    }
+                }
+
                 composable(BottomNavItem.POMODORO.route) {
                     PomodoroScreen(navController)
                 }
