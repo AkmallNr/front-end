@@ -9,37 +9,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Laptop
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Task
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.Background
@@ -47,19 +37,24 @@ import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+import kotlin.math.min
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
     val context = LocalContext.current
     val preferencesHelper = remember { PreferencesHelper(context) }
-    val userId = preferencesHelper.getUserId().toInt()
+    val userId = preferencesHelper.getUserId()
     var user by remember { mutableStateOf<User?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var shouldRefreshUserData by remember { mutableStateOf(false) }
 
-    // All available projects
+    // All available projects, groups, and tasks
     val allProjects = remember { mutableStateListOf<Project>() }
+    val allTasks = remember { mutableStateListOf<Task>() }
+    val groups = remember { mutableStateListOf<Group>() }
 
     // Projects selected for display on home screen
     val selectedProjects = remember { mutableStateListOf<Project>() }
@@ -70,46 +65,47 @@ fun HomeScreen(navController: NavHostController) {
     // State for project selection dialog
     var showProjectSelectionDialog by remember { mutableStateOf(false) }
 
+    // Define fetchUserData function
     fun fetchUserData() {
         coroutineScope.launch {
             isLoading = true
             try {
                 Log.d("HomeScreen", "Fetching user data for userId: $userId")
                 val response = RetrofitInstance.api.getUsers()
-
                 if (response.isSuccessful) {
                     val userData = response.body()?.data?.find { it.id == userId }
                     if (userData != null) {
                         user = userData
                         Log.d("HomeScreen", "Fetched user: $userData")
-
-                        // Check if profile picture is null and set a flag to refresh later
                         if (userData.profile_picture == null) {
                             Log.d("HomeScreen", "Profile picture is null, will refresh data later")
                             if (!shouldRefreshUserData) {
                                 shouldRefreshUserData = true
-                                // Give the server some time to process any pending updates
                                 delay(1000)
-                                fetchUserData() // Recursive call to refresh data
+                                fetchUserData()
                             }
                         } else {
                             shouldRefreshUserData = false
                         }
                     } else {
                         Log.w("HomeScreen", "User not found for userId: $userId")
+                        user = null
                     }
                 } else {
                     Log.e("HomeScreen", "Failed to fetch users: ${response.errorBody()?.string()}")
+                    user = null
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("HomeScreen", "Error fetching users: ${e.message}")
+                user = null
             } finally {
                 isLoading = false
             }
         }
     }
 
+    // Define fetchProjects function
     fun fetchProjects() {
         coroutineScope.launch {
             isProjectsLoading = true
@@ -118,9 +114,13 @@ fun HomeScreen(navController: NavHostController) {
                 allProjects.clear()
                 allProjects.addAll(response.data)
 
-                // Initially, select up to 3 projects to display
+                // Load saved selected projects or default to empty if none saved
+                val savedProjectIds = preferencesHelper.getSelectedProjectIds().mapNotNull { it.toIntOrNull() }
+                val initialSelected = allProjects.filter { project ->
+                    project.id?.let { savedProjectIds.contains(it) } ?: false
+                }
                 selectedProjects.clear()
-                selectedProjects.addAll(allProjects.take(3))
+                selectedProjects.addAll(initialSelected)
 
                 Log.d("HomeScreen", "Projects fetched successfully: ${allProjects.size} projects")
             } catch (e: Exception) {
@@ -132,27 +132,76 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Function to save selected projects (in a real app, this would persist to local storage or backend)
+    // Define fetchGroups function
+    fun fetchGroups() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getGroups(userId).data
+                groups.clear()
+                groups.addAll(response)
+                Log.d("HomeScreen", "Groups fetched successfully: ${groups.size} groups")
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Failed to fetch groups: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // Define fetchTask function
+    fun fetchTask() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getTaskByUser(userId).data
+                allTasks.clear()
+                allTasks.addAll(response)
+                Log.d("HomeScreen", "Tasks fetched successfully: ${allTasks.size} tasks for userId: $userId")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Log.e("HomeScreen", "Error fetching tasks: ${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // Define logout function
+    fun logout() {
+        preferencesHelper.clearSession()
+        navController.navigate("login") {
+            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+        }
+    }
+
+    // Load data on initialization
+    LaunchedEffect(Unit) {
+        if (userId != -1) {
+            fetchUserData()
+            fetchProjects()
+            fetchGroups()
+            fetchTask()
+        }
+    }
+
+    // Save selected projects to preferences
     fun saveSelectedProjects(projects: List<Project>) {
         selectedProjects.clear()
         selectedProjects.addAll(projects)
-        // In a real implementation, you might want to save this to SharedPreferences or your backend
+        val projectIds = projects.mapNotNull { it.id }.joinToString(",")
+        preferencesHelper.saveSelectedProjectIds(projectIds)
         Log.d("HomeScreen", "Saved ${selectedProjects.size} projects as shortcuts")
     }
 
-    LaunchedEffect(Unit) {
-        fetchUserData()
-        fetchProjects()
-    }
-
-    Scaffold(
-    ) { paddingValues ->
+    Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .background(Background) // Light cream background like in the image
+                    .background(Background)
             ) {
                 // Top bar with greeting and icons
                 Row(
@@ -183,10 +232,9 @@ fun HomeScreen(navController: NavHostController) {
                                 modifier = Modifier
                                     .size(48.dp)
                                     .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
                             )
                         } else {
-                            // Fallback if no profile picture
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
@@ -211,90 +259,131 @@ fun HomeScreen(navController: NavHostController) {
                                     modifier = Modifier.width(80.dp),
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                            } else if (user != null) {
+                            } else if (user != null && userId != -1) {
                                 Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             } else {
                                 Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    IconButton(onClick = { /* Handle notifications */ }) {
-                        Icon(
-                            imageVector = Icons.Filled.Notifications,
-                            contentDescription = "Notifications",
-                            tint = Color.Black
-                        )
-                    }
-                }
-
-                // Task progress card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA726)) // Orange color from image
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
                                 Text(
-                                    "Your today's task",
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    "almost done!",
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(60.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    progress = { 0.83f },
-                                    modifier = Modifier.size(60.dp),
-                                    color = Color.White,
-                                    strokeWidth = 4.dp
-                                )
-                                Text(
-                                    "83%",
-                                    color = Color.White,
+                                    "Log in to access your projects",
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    color = Color.Gray,
+                                    modifier = Modifier.clickable {
+                                        navController.navigate("login") {
+                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                        }
+                                    }
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { /* Navigate to task view */ },
-                            modifier = Modifier
-                                .align(Alignment.Start)
-                                .height(36.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("View Task", fontSize = 14.sp)
+                    }
+
+                    Row {
+                        IconButton(onClick = { /* Handle notifications */ }) {
+                            Icon(
+                                imageVector = Icons.Filled.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color.Black
+                            )
+                        }
+                        IconButton(onClick = { logout() }) {
+                            Icon(
+                                imageVector = Icons.Filled.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = Color.Black
+                            )
                         }
                     }
                 }
+
+                // Task summary section
+                Text(
+                    "Ringkasan Tugas",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Menghitung tugas selesai dan tertunda
+                val completedTasks = allTasks.count { it.status == true }
+                val pendingTasks = allTasks.count { it.status == false || it.status == null }
+
+                // Task summary cards in a more compact row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Completed tasks card
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(100.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE6F1FA)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                completedTasks.toString(),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                "Tugas Selesai",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    // Pending tasks card
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(100.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE6F1FA)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                pendingTasks.toString(),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                "Tugas Tertunda",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Project Groups section with + button
                 Row(
@@ -310,7 +399,6 @@ fun HomeScreen(navController: NavHostController) {
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
-
                         Text(
                             "${selectedProjects.size}",
                             fontSize = 14.sp,
@@ -321,8 +409,7 @@ fun HomeScreen(navController: NavHostController) {
 
                     IconButton(
                         onClick = { showProjectSelectionDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
@@ -358,13 +445,19 @@ fun HomeScreen(navController: NavHostController) {
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Display only selected projects
                         items(selectedProjects) { project ->
-                            ProjectCard(
+                            val group = groups.find { it.id == project.groupId } ?: Group(
+                                id = -1,
+                                name = "Unknown",
+                                icon = "fas fa-users"
+                            )
+                            ProjectCard1(
                                 project = project,
+                                group = group,
                                 onClick = {
-                                    // Navigate to project detail
-                                    navController.navigate("schedule/${userId}/${project.groupId ?: 0}/${project.id ?: 0}")
+                                    val groupId = project.groupId ?: 0
+                                    val projectId = project.id ?: 0
+                                    navController.navigate("project_detail/$userId/$groupId/$projectId")
                                 }
                             )
                         }
@@ -426,7 +519,6 @@ fun ProjectSelectionDialog(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
@@ -437,10 +529,14 @@ fun ProjectSelectionDialog(
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                // Project selection list
+                // Dynamic height with scrollable LazyColumn
+                val maxHeight = 400.dp
+                val itemHeight = 48.dp
+                val dynamicHeight = minOf(maxHeight, itemHeight * allProjects.size.coerceAtMost(8))
+
                 LazyColumn(
                     modifier = Modifier
-                        .weight(1f)
+                        .heightIn(min = 0.dp, max = dynamicHeight)
                         .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -514,15 +610,47 @@ fun ProjectSelectionDialog(
 }
 
 @Composable
-fun ProjectCard(
+fun ProjectCard1(
     project: Project,
+    group: Group,
     onClick: () -> Unit
 ) {
     val projectColor = when ((project.id ?: 0) % 3) {
-        0 -> Color(0xFFFFA0A0) to Color(0xFFFFD0D0) // Red
+        0 -> Color(0xFFFFA0A0) to Color(0xFFD0D0D0) // Red
         1 -> Color(0xFFA0C4FF) to Color(0xFFD0E0FF) // Blue
         else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0) // Green
     }
+
+    // Icon mapping seperti di ScheduleScreen
+    val iconMapping = mapOf(
+        "fas fa-users" to Icons.Default.Group,
+        "fas fa-folder" to Icons.Default.Folder,
+        "fas fa-star" to Icons.Default.Star,
+        "fas fa-home" to Icons.Default.Home,
+        "fas fa-tasks" to Icons.Default.List,
+        "fas fa-calendar" to Icons.Default.CalendarMonth,
+        "fas fa-book" to Icons.Default.Book,
+        "fas fa-bell" to Icons.Default.Notifications,
+        "fas fa-heart" to Icons.Default.Favorite,
+        "fas fa-check" to Icons.Default.CheckCircle,
+        "fas fa-envelope" to Icons.Default.Email,
+        "fas fa-image" to Icons.Default.Image,
+        "fas fa-file" to Icons.Default.Description,
+        "fas fa-clock" to Icons.Default.AccessTime,
+        "fas fa-cog" to Icons.Default.Settings,
+        "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+        "fas fa-tag" to Icons.Default.LocalOffer,
+        "fas fa-link" to Icons.Default.Link,
+        "fas fa-map" to Icons.Default.Place,
+        "fas fa-music" to Icons.Default.MusicNote,
+        "fas fa-phone" to Icons.Default.Call,
+        "fas fa-camera" to Icons.Default.PhotoCamera,
+        "fas fa-search" to Icons.Default.Search,
+        "fas fa-cloud" to Icons.Default.Cloud,
+        "fas fa-person" to Icons.Default.Person
+    )
+
+    val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Laptop
 
     Card(
         modifier = Modifier
@@ -538,7 +666,6 @@ fun ProjectCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon placeholder
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -547,8 +674,8 @@ fun ProjectCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Laptop,
-                    contentDescription = null,
+                    imageVector = selectedIcon,
+                    contentDescription = "${group.name} Icon",
                     tint = projectColor.first
                 )
             }
@@ -562,31 +689,28 @@ fun ProjectCard(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                val startDate = project.startDate ?: "No start date"
-                val endDate = project.endDate ?: "No end date"
                 Text(
-                    "$startDate - $endDate",
+                    formatDateRange(project.startDate, project.endDate),
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
             }
 
-            // Progress indicator (using a random progress for now)
-            val progress = ((project.id ?: 0) % 100) / 100f
+            // Progress indicator (hardcoded to 2% as in original)
             Box(
                 modifier = Modifier
                     .size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    progress = { progress },
+                    progress = { 0.02f },
                     modifier = Modifier.size(40.dp),
                     color = projectColor.first,
                     strokeWidth = 3.dp,
                     trackColor = Color.LightGray.copy(alpha = 0.3f)
                 )
                 Text(
-                    "${(progress * 100).toInt()}%",
+                    "2%",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -594,3 +718,4 @@ fun ProjectCard(
         }
     }
 }
+

@@ -25,6 +25,11 @@ interface ApiService {
         @Path("userId") userId: Int
     ): ProjectResponse
 
+    @GET("users/{userId}/tasks")
+    suspend fun getTaskByUser(
+        @Path("userId") userId: Int
+    ): TaskResponse
+
     // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
@@ -160,6 +165,13 @@ interface ApiService {
     suspend fun loginWithGoogle(
         @Body token: Map<String, String>
     ): Response<LoginResponse>
+
+    @PUT("users/{userId}/groups/{groupId}")
+    suspend fun updateGroup(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Body groupRequest: GroupRequest
+    ): Response<Group>
 }
 
 data class ScheduleRequest(
@@ -184,7 +196,8 @@ data class ProjectRequest(
     val name: String,
     val description: String,
     val startDate: String?,
-    val endDate: String
+    val endDate: String,
+    val groupId: Int? = null // Add groupId to allow updating the group
 )
 
 data class TaskRequest(
