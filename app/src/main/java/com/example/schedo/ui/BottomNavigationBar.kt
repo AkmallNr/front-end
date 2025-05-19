@@ -24,6 +24,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.ui.theme.Utama3
 import com.example.schedo.util.PreferencesHelper
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
@@ -38,13 +39,17 @@ enum class BottomNavItem(val route: String, val title: String, val icon: ImageVe
 }
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController) {
+fun BottomNavigationBar(
+    navController: NavHostController,
+    onShowAddTodo: (Boolean) -> Unit
+) {
     val context = LocalContext.current
     val preferencesHelper = PreferencesHelper(context)
-    val userId = preferencesHelper.getUserId() // Ambil userId dari PreferencesHelper
+    val userId = preferencesHelper.getUserId()
 
     val items = listOf(BottomNavItem.TODO, BottomNavItem.JADWAL, BottomNavItem.POMODORO, BottomNavItem.PROFILE)
-    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
         Surface(
@@ -53,7 +58,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 .height(64.dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(Background),
-            color = Color.Transparent
+            color = Utama2
         ) {
             Row(
                 modifier = Modifier
@@ -62,7 +67,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Ikon 1: Home
+                // Icon 1: Home
                 val selected1 = currentRoute == items[0].route
                 val animatedSize1 by animateFloatAsState(
                     targetValue = if (selected1) 1.2f else 1.0f,
@@ -81,11 +86,11 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[0].icon,
                         contentDescription = items[0].title,
                         modifier = Modifier.size((24 * animatedSize1).dp),
-                        tint = if (selected1) Utama2 else Color.Gray
+                        tint = if (selected1) Utama3 else Color.White
                     )
                 }
 
-                // Ikon 2: Jadwal
+                // Icon 2: Schedule
                 val selected2 = currentRoute?.startsWith("jadwal") == true
                 val animatedSize2 by animateFloatAsState(
                     targetValue = if (selected2) 1.2f else 1.0f,
@@ -104,14 +109,13 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[1].icon,
                         contentDescription = items[1].title,
                         modifier = Modifier.size((24 * animatedSize2).dp),
-                        tint = if (selected2) Utama2 else Color.Gray
+                        tint = if (selected2) Utama3 else Color.White
                     )
                 }
 
-                // Spacer untuk memberikan jarak di sekitar FAB
                 Spacer(modifier = Modifier.width(48.dp))
 
-                // Ikon 3: Pomodoro
+                // Icon 3: Pomodoro
                 val selected3 = currentRoute == items[2].route
                 val animatedSize3 by animateFloatAsState(
                     targetValue = if (selected3) 1.2f else 1.0f,
@@ -130,11 +134,11 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[2].icon,
                         contentDescription = items[2].title,
                         modifier = Modifier.size((24 * animatedSize3).dp),
-                        tint = if (selected3) Utama2 else Color.Gray
+                        tint = if (selected3) Utama3 else Color.White
                     )
                 }
 
-                // Ikon 4: Profile
+                // Icon 4: Profile
                 val selected4 = currentRoute == items[3].route
                 val animatedSize4 by animateFloatAsState(
                     targetValue = if (selected4) 1.2f else 1.0f,
@@ -153,7 +157,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                         imageVector = items[3].icon,
                         contentDescription = items[3].title,
                         modifier = Modifier.size((24 * animatedSize4).dp),
-                        tint = if (selected4) Utama2 else Color.Gray
+                        tint = if (selected4) Utama3 else Color.White
                     )
                 }
             }
@@ -165,12 +169,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                     Toast.makeText(context, "Silakan login terlebih dahulu", Toast.LENGTH_LONG).show()
                     navController.navigate("login")
                 } else {
-                    try {
-                        navController.navigate("new_project/$userId/-1/-1")
-                    } catch (e: IllegalArgumentException) {
-                        println("Navigation error: ${e.message}")
-                        Toast.makeText(context, "Gagal navigasi ke tambah proyek", Toast.LENGTH_LONG).show()
-                    }
+                    onShowAddTodo(true)
                 }
             },
             modifier = Modifier
@@ -178,7 +177,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 .offset(y = (-32).dp)
                 .align(Alignment.Center),
             shape = CircleShape,
-            containerColor = Utama2
+            containerColor = Utama3
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", tint = Color.White)
         }
