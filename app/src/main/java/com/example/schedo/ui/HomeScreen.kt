@@ -1,5 +1,9 @@
 package com.example.schedo.ui
 
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +41,7 @@ import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.provider.Settings
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
@@ -183,6 +188,15 @@ fun HomeScreen(navController: NavHostController) {
             fetchProjects()
             fetchGroups()
             fetchTask()
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                // Buka pengaturan untuk meminta izin kepada pengguna
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                context.startActivity(intent)
+            }
         }
     }
 

@@ -1,5 +1,7 @@
 package com.example.schedo.ui
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -38,6 +40,7 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.receiver.NotificationReceiver
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey1
 import com.example.schedo.ui.theme.Grey2
@@ -612,6 +615,13 @@ fun AddTaskScreen(
                             selectedReminderDate = calendar.time
                             reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
                             showReminderTimePicker = false
+
+                            scheduleReminderNotification(
+                                context = context,
+                                reminderTime = selectedReminderDate,
+                                title = "Pengingat To-Do",
+                                message = "Tugasmu '${taskTitle}' perlu dikerjakan!\n\nQuote hari ini:\n\"${selectedQuote}\""
+                            )
                         }) {
                             Text("Simpan")
                         }
@@ -669,6 +679,33 @@ fun AddTaskScreen(
             }
         }
     }
+}
+
+fun scheduleReminderNotification(
+    context: Context,
+    reminderTime: Date,
+    title: String,
+    message: String,
+    notificationId: Int = Random().nextInt()
+) {
+    val intent = Intent(context, NotificationReceiver::class.java).apply {
+        putExtra("title", title)
+        putExtra("message", message)
+    }
+
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        notificationId,
+        intent,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    alarmManager.setExactAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        reminderTime.time,
+        pendingIntent
+    )
 }
 
 @Composable
