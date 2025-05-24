@@ -1,5 +1,6 @@
 package com.example.schedo.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -184,6 +185,7 @@ fun TimePickerDialog(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun AddTaskScreen(
     navController: NavHostController,
@@ -349,12 +351,11 @@ fun AddTaskScreen(
                 )
             )
         }
-    ) { paddingValues ->
+    ) { _ ->
         Box {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState())
             ) {

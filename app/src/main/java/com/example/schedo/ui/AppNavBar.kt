@@ -1,5 +1,6 @@
 package com.example.schedo.ui
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun AppNavHost(
     navController: NavHostController,
@@ -69,11 +71,11 @@ fun AppNavHost(
                 )
             }
         }
-    ) { paddingValues ->
+    ) { _ ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+
         ) {
             NavHost(
                 navController = navController,

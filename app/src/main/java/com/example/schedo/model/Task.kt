@@ -9,7 +9,8 @@ data class Task (
     val priority:String,
     val attachment: List<String>? = null,
     val status: Boolean? =null,
-    val quoteId: Int? = null
+    val quoteId: Int? = null,
+    val completed_at: String?
 )
 
 data class Attachment(

@@ -103,6 +103,13 @@ interface ApiService {
         @Body taskRequest: TaskRequest
     ): Response<Task>
 
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/completed-today")
+    suspend fun getCompletedTasksCountToday(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int
+    ): CompletedTasksResponse
+
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}")
     suspend fun updateProject(
         @Path("userId") userId: Int,
@@ -188,7 +195,23 @@ interface ApiService {
         @Path("groupId") groupId: Int,
         @Body groupRequest: GroupRequest
     ): Response<Group>
+
+    @GET("users/{userId}/tasks/weekly-completed")
+    suspend fun getWeeklyCompletedTasks(
+        @Path("userId") userId: Int,
+        @Query("week_start") weekStart: String? = null
+    ): Response<WeeklyCompletedTasksResponse>
 }
+
+data class WeeklyCompletedTasksResponse(
+    val data: WeeklyCompletedTasksData
+)
+
+data class WeeklyCompletedTasksData(
+    val date_range: String,
+    val tasks: Map<String, Int>,
+    val week_start: String // Tambahkan untuk menyimpan tanggal mulai minggu
+)
 
 data class FileUploadResponse(
     val success: Boolean,
@@ -238,4 +261,12 @@ data class TaskRequest(
     val attachment: List<String>? = null,
     val status: Boolean? = null,
     val quoteId: Int? = null
+)
+
+data class CompletedTasksResponse(
+    val data: CompletedTasksData
+)
+
+data class CompletedTasksData(
+    val completed_today: Int
 )

@@ -58,7 +58,7 @@ fun AddTodoScreen(
     var showProjectModal by remember { mutableStateOf(true) }
 
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val isoSdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ", Locale.getDefault())
+    val isoSdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
     val initialStartDate = project?.startDate?.let {
         try {
