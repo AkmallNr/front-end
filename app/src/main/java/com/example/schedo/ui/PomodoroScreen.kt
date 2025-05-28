@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.SportsBasketball
 import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -39,7 +40,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.schedo.ui.theme.Background
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
@@ -103,9 +107,10 @@ fun PomodoroScreen(navController: NavHostController) {
     var currentQuoteIndex by remember { mutableIntStateOf(0) }
     var showMinuteSelector by remember { mutableStateOf(false) } // State untuk menampilkan dropdown menit
     var previousAngle by remember { mutableFloatStateOf(angle) } // Track previous angle for drag direction
+    var showTimeUpDialog by remember { mutableStateOf(false) } // notifikasi saat waktu habis
 
     // Warna
-    val backgroundColor = Color(0xFFFFF3E0)
+    val backgroundColor = Background
     val timerColor = Color(0xFFFFB74D)
     val handleColor = Color.White
     val progressColor = Color.White
@@ -124,6 +129,7 @@ fun PomodoroScreen(navController: NavHostController) {
                 }
             }
             isRunning = false
+            showTimeUpDialog = true
         }
     }
 
@@ -137,6 +143,7 @@ fun PomodoroScreen(navController: NavHostController) {
     }
 
     Scaffold(
+        containerColor = backgroundColor,
         topBar = {
             TopAppBar(
                 title = { Text("Pomodoro") },
@@ -144,13 +151,15 @@ fun PomodoroScreen(navController: NavHostController) {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor)
             )
         }
-    ) { _ ->
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(paddingValues),
                 .background(backgroundColor),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -175,6 +184,7 @@ fun PomodoroScreen(navController: NavHostController) {
                     .weight(1f)
                     .wrapContentHeight(Alignment.CenterVertically)
                     .wrapContentWidth(Alignment.CenterHorizontally)
+                    .background(backgroundColor)
             ) {
                 Box(
                     modifier = Modifier
@@ -380,6 +390,23 @@ fun PomodoroScreen(navController: NavHostController) {
                     modifier = Modifier.size(28.dp)
                 )
             }
+        }
+
+        if (showTimeUpDialog) {
+            AlertDialog(
+                onDismissRequest = { showTimeUpDialog = false },
+                title = {
+                    Text("Time Is Up")
+                },
+                text = {
+                    Text("Sesi Pomodoro telah selesai. Istirahat sejenak ya!")
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTimeUpDialog = false }) {
+                        Text("OK")
+                    }
+                }
+            )
         }
     }
 }

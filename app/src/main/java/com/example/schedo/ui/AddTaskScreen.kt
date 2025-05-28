@@ -1,5 +1,7 @@
 package com.example.schedo.ui
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -39,7 +41,10 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.receiver.NotificationReceiver
+import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
 import com.example.schedo.ui.theme.Utama1
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
@@ -168,6 +173,7 @@ fun getFileNameFromUrl(url: String): String {
 fun isUrl(text: String): Boolean {
     return text.startsWith("http://") || text.startsWith("https://")
 }
+
 
 @Composable
 fun TimePickerDialog(
@@ -351,11 +357,12 @@ fun AddTaskScreen(
                 )
             )
         }
-    ) { _ ->
+    ) { paddingValues ->
         Box {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(paddingValues)
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState())
             ) {
@@ -405,7 +412,7 @@ fun AddTaskScreen(
                     EnhancedTaskOptionRow(
                         icon = { Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2) },
                         title = "Catatan",
-                        value = "TAMBAH",
+                        value = "+",
                         buttonStyle = true,
                         onClick = { showNoteDialog = true }
                     )
@@ -417,7 +424,7 @@ fun AddTaskScreen(
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2) },
                     title = "Lampiran",
-                    value = if (attachmentList.isNullOrEmpty()) "TAMBAH" else "${attachmentList!!.size} item",
+                    value = if (attachmentList.isNullOrEmpty()) "+" else "${attachmentList!!.size} item",
                     buttonStyle = attachmentList.isNullOrEmpty(),
                     onClick = { showAttachmentDialog = true }
                 )
@@ -435,6 +442,7 @@ fun AddTaskScreen(
                     onPrioritySelected = { priority = it }
                 )
 
+                // Add Quote section here after Priority
                 if (isLoadingQuotes) {
                     Box(
                         modifier = Modifier
@@ -462,6 +470,19 @@ fun AddTaskScreen(
                             Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
+                        println("user id : ${userId}, group id : ${groupId}, project id ${projectId}")
+
+                        val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                        val taskRequest = TaskRequest(
+                            id = task?.id,
+                            name = taskTitle.text.trim(),
+                            description = note.trim(),
+                            deadline = dateFormat.format(selectedDeadlineDate),
+                            reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
+                            priority = priority,
+                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
+                            status = task?.status ?: false
+                        )
 
                         scope.launch {
                             android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
@@ -539,6 +560,7 @@ fun AddTaskScreen(
                                 status = task?.status ?: false,
                                 quoteId = selectedQuote?.id
                             )
+
 
                             try {
                                 val response = if (taskId == null) {
@@ -672,6 +694,13 @@ fun AddTaskScreen(
                             selectedReminderDate = calendar.time
                             reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
                             showReminderTimePicker = false
+
+                            scheduleReminderNotification(
+                                context = context,
+                                reminderTime = selectedReminderDate,
+                                title = "Pengingat To-Do",
+                                message = "Tugasmu '${taskTitle}' perlu dikerjakan!\n\nQuote hari ini:\n\"${selectedQuote}\""
+                            )
                         }) {
                             Text("Simpan")
                         }
@@ -694,13 +723,15 @@ fun AddTaskScreen(
                 AlertDialog(
                     onDismissRequest = { showNoteDialog = false },
                     confirmButton = {
-                        TextButton(onClick = { showNoteDialog = false }) {
+                        TextButton(onClick = { showNoteDialog = false }, colors = ButtonDefaults.buttonColors(
+                            Utama2)
+                        ) {
                             Text("Simpan")
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { showNoteDialog = false }) {
-                            Text("Batal")
+                            Text("Batal", color = Utama2)
                         }
                     },
                     text = {
@@ -708,7 +739,8 @@ fun AddTaskScreen(
                             value = note,
                             onValueChange = { note = it },
                             modifier = Modifier.fillMaxWidth(),
-                            minLines = 4
+                            minLines = 4,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Utama2)
                         )
                     }
                 )
@@ -726,6 +758,33 @@ fun AddTaskScreen(
             }
         }
     }
+}
+
+fun scheduleReminderNotification(
+    context: Context,
+    reminderTime: Date,
+    title: String,
+    message: String,
+    notificationId: Int = Random().nextInt()
+) {
+    val intent = Intent(context, NotificationReceiver::class.java).apply {
+        putExtra("title", title)
+        putExtra("message", message)
+    }
+
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        notificationId,
+        intent,
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    alarmManager.setExactAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        reminderTime.time,
+        pendingIntent
+    )
 }
 
 @Composable
@@ -749,13 +808,13 @@ fun QuoteSection(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote")
+                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote", tint = Utama2)
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
@@ -982,7 +1041,7 @@ fun NoteSection(note: String, onClick: () -> Unit) {
 
 @Composable
 fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1049,6 +1108,7 @@ fun AddQuoteDialog(
     onAddQuote: (String) -> Unit
 ) {
     var quoteContent by remember { mutableStateOf(TextFieldValue("")) }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1132,27 +1192,27 @@ fun EnhancedTaskOptionRow(
                     chipStyle -> {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         ) {
                             Text(
                                 text = value,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = Utama2,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
                     }
                     buttonStyle -> {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = CircleShape,
+                            color = Background,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         ) {
                             Text(
                                 text = value,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = Utama2,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
@@ -1162,7 +1222,7 @@ fun EnhancedTaskOptionRow(
                         Text(
                             text = value,
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Utama2,
                             modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
                         )
                     }

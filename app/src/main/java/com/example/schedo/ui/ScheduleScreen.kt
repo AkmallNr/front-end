@@ -86,7 +86,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
 
     val backgroundColor = Background
-    val selectedTabColor = Color(0xFFFFC278)
+    val selectedTabColor = Utama2
 
     fun fetchSchedules() {
         coroutineScope.launch {
@@ -161,7 +161,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 72.dp), // Tambahkan padding bawah untuk menghindari tumpang tindih dengan BottomNavigationBar dari AppNavHost
+                .padding(bottom = 56.dp), // Padding dikurangi dari 72dp menjadi 56dp
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
@@ -242,102 +242,124 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     1 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween // Memastikan konten terdistribusi
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
-                                Text("<")
-                            }
-                            var expanded by remember { mutableStateOf(false) }
-                            Box {
-                                Text(
-                                    text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
-                                    modifier = Modifier.clickable { expanded = true }
-                                )
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    val months = DateFormatSymbols().months
-                                    months.forEachIndexed { index, month ->
-                                        DropdownMenuItem(
-                                            text = { Text(month) },
-                                            onClick = {
-                                                currentWeekStart.set(Calendar.MONTH, index)
-                                                currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
-                                                currentWeekStart = getWeekStartDate(currentWeekStart)
-                                                expanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
-                                Text(">")
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val dates = getWeekDates(currentWeekStart)
-                            val days = listOf("M", "S", "S", "R", "K", "J", "S")
-                            days.forEachIndexed { index, day ->
-                                Card(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(4.dp)
-                                        .clickable { },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH))
-                                            Color(0xFFFFC278) else Color.White
-                                    )
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(day)
-                                        Text(dates[index].toString())
-                                    }
-                                }
-                            }
-                        }
-
-                        Text(
-                            text = "Jadwal Hari Ini",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-
-                        if (isLoading) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        } else if (schedules.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("Tidak ada jadwal", color = Color.Gray)
-                            }
-                        } else {
-                            LazyColumn(
+                        // Bagian atas - Header & Calendar
+                        Column {
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .padding(vertical = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                items(schedules) { schedule ->
-                                    ScheduleCard(schedule, userId, groupId) { action ->
-                                        when (action) {
-                                            "edit" -> selectedSchedule = schedule
-                                            "delete" -> coroutineScope.launch {
-                                                apiService.deleteSchedule(userId, schedule.id)
-                                                fetchSchedules()
+                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
+                                    Text("<")
+                                }
+                                var expanded by remember { mutableStateOf(false) }
+                                Box {
+                                    Text(
+                                        text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
+                                        modifier = Modifier.clickable { expanded = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false }
+                                    ) {
+                                        val months = DateFormatSymbols().months
+                                        months.forEachIndexed { index, month ->
+                                            DropdownMenuItem(
+                                                text = { Text(month) },
+                                                onClick = {
+                                                    currentWeekStart.set(Calendar.MONTH, index)
+                                                    currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
+                                                    currentWeekStart = getWeekStartDate(currentWeekStart)
+                                                    expanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
+                                    Text(">")
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                val dates = getWeekDates(currentWeekStart)
+                                val days = listOf("M", "S", "S", "R", "K", "J", "S")
+                                days.forEachIndexed { index, day ->
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(4.dp)
+                                            .clickable { },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH))
+                                                Utama2 else Color.White
+                                        )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(day)
+                                            Text(dates[index].toString())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Bagian tengah - Jadwal
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Jadwal Hari Ini",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            )
+
+                            when {
+                                isLoading -> {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = Utama2)
+                                    }
+                                }
+
+                                schedules.isEmpty() -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Tidak ada jadwal", color = Color.Gray)
+                                    }
+                                }
+
+                                else -> {
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(schedules) { schedule ->
+                                            ScheduleCard(schedule, userId, groupId) { action ->
+                                                when (action) {
+                                                    "edit" -> selectedSchedule = schedule
+                                                    "delete" -> coroutineScope.launch {
+                                                        apiService.deleteSchedule(userId, schedule.id)
+                                                        fetchSchedules()
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -345,23 +367,42 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        Button(
-                            onClick = { showAddSchedule = true },
+                        // Bagian bawah - Tombol Tambah Jadwal
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.End)
-                                .padding(bottom = 16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
-                            Text("Tambah Jadwal")
+                            Button(
+                                onClick = { showAddSchedule = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Utama2,
+                                    contentColor = Color.White
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = 4.dp,
+                                    pressedElevation = 8.dp
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Tambah Jadwal",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Tambah Jadwal", fontWeight = FontWeight.Medium)
+                            }
                         }
 
                         if (showAddSchedule || selectedSchedule != null) {
-                            AddScheduleDialog(
-                                navController,
-                                userId,
-                                groupId,
-                                currentWeekStart,
+                            AddScheduleScreen(
+                                navController = navController,
+                                userId = userId,
+                                groupId = groupId,
+                                currentWeekStart = currentWeekStart,
                                 onDismiss = { showAddSchedule = false; selectedSchedule = null },
                                 scheduleToEdit = selectedSchedule,
                                 onScheduleAdded = { fetchSchedules() }
@@ -790,6 +831,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 .padding(16.dp)
                 .padding(bottom = 72.dp)
         ) {
+            // Custom Top Bar
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -819,8 +861,10 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                         tint = Color.Transparent
                     )
                 }
+
             }
 
+            // Detail Proyek Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),

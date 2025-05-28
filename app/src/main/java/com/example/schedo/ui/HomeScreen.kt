@@ -1,6 +1,10 @@
 package com.example.schedo.ui
 
 import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -15,20 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -40,20 +38,23 @@ import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.User
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.WeeklyCompletedTasksData
 import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.provider.Settings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import java.text.SimpleDateFormat
 import java.util.*
-
+import kotlin.math.min
 
 @Composable
 fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
@@ -172,12 +173,18 @@ fun HomeScreen(navController: NavHostController) {
     var isLoading by remember { mutableStateOf(false) }
     var shouldRefreshUserData by remember { mutableStateOf(false) }
 
+    // All available projects, groups, and tasks
     val allProjects = remember { mutableStateListOf<Project>() }
     val allTasks = remember { mutableStateListOf<Task>() }
+    val groups = remember { mutableStateListOf<Group>() }
+
+    // Projects selected for display on home screen
     val selectedProjects = remember { mutableStateListOf<Project>() }
 
     var isProjectsLoading by remember { mutableStateOf(false) }
     var showAllProjects by remember { mutableStateOf(false) }
+
+    // State for project selection dialog
     var showProjectSelectionDialog by remember { mutableStateOf(false) }
 
     var weeklyCompletedTasks by remember { mutableStateOf<WeeklyCompletedTasksData?>(null) }
@@ -213,22 +220,24 @@ fun HomeScreen(navController: NavHostController) {
                         }
                     } else {
                         Log.w("HomeScreen", "User not found for userId: $userId")
+                        // Jika user tidak ditemukan, anggap sebagai guest
                         user = null
                     }
                 } else {
                     Log.e("HomeScreen", "Failed to fetch users: ${response.errorBody()?.string()}")
-                    user = null
+                    user = null // Anggap sebagai guest jika gagal
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("HomeScreen", "Error fetching users: ${e.message}")
-                user = null
+                user = null // Anggap sebagai guest jika error
             } finally {
                 isLoading = false
             }
         }
     }
 
+    // Define fetchProjects function
     fun fetchProjects() {
         coroutineScope.launch {
             isProjectsLoading = true
@@ -236,12 +245,15 @@ fun HomeScreen(navController: NavHostController) {
                 val response = RetrofitInstance.api.getProjectsByUser(userId)
                 allProjects.clear()
                 allProjects.addAll(response.data)
+
+                // Load saved selected projects or default to empty if none saved
                 val savedProjectIds = preferencesHelper.getSelectedProjectIds().mapNotNull { it.toIntOrNull() }
                 val initialSelected = allProjects.filter { project ->
                     project.id?.let { savedProjectIds.contains(it) } ?: false
                 }
                 selectedProjects.clear()
                 selectedProjects.addAll(initialSelected)
+
                 Log.d("HomeScreen", "Projects fetched successfully: ${allProjects.size} projects")
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Failed to fetch projects: ${e.message}")
@@ -252,6 +264,25 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
+    // Define fetchGroups function
+    fun fetchGroups() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitInstance.api.getGroups(userId).data
+                groups.clear()
+                groups.addAll(response)
+                Log.d("HomeScreen", "Groups fetched successfully: ${groups.size} groups")
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Failed to fetch groups: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // Define fetchTask function
     fun fetchTask() {
         coroutineScope.launch {
             isLoading = true
@@ -259,10 +290,10 @@ fun HomeScreen(navController: NavHostController) {
                 val response = RetrofitInstance.api.getTaskByUser(userId).data
                 allTasks.clear()
                 allTasks.addAll(response)
-                println("Task fetched successfully: ${allTasks.size} task for userId: $userId")
-                println("isi Task: ${allTasks}")
+                Log.d("HomeScreen", "Tasks fetched successfully: ${allTasks.size} tasks for userId: $userId")
             } catch (e: Exception) {
                 e.printStackTrace()
+                Log.e("HomeScreen", "Error fetching tasks: ${e.message}")
             } finally {
                 isLoading = false
             }
@@ -300,12 +331,23 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
+    // Load data on initialization
     LaunchedEffect(Unit) {
         if (userId != -1) {
             fetchUserData()
             fetchProjects()
+            fetchGroups()
             fetchTask()
             fetchWeeklyCompletedTasks(currentWeekStart)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                // Buka pengaturan untuk meminta izin kepada pengguna
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                context.startActivity(intent)
+            }
         }
     }
 
@@ -323,15 +365,17 @@ fun HomeScreen(navController: NavHostController) {
         Log.d("HomeScreen", "Saved ${selectedProjects.size} projects as shortcuts")
     }
 
-    Scaffold { _ ->
+    Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(paddingValues)
                     .background(Background)
                     .verticalScroll(rememberScrollState())
                     .padding(vertical = 50.dp)
             ) {
+                // Top bar with greeting and icons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -437,18 +481,22 @@ fun HomeScreen(navController: NavHostController) {
                 val completedTasks = allTasks.count { it.status == true }
                 val pendingTasks = allTasks.count { it.status == false || it.status == null }
 
+                // Task summary cards in a more compact row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Completed tasks card - smaller version
                     Card(
                         modifier = Modifier
                             .weight(1f)
                             .height(100.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F1FA))
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE6F1FA)
+                        )
                     ) {
                         Column(
                             modifier = Modifier
@@ -463,7 +511,9 @@ fun HomeScreen(navController: NavHostController) {
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
+
                             Spacer(modifier = Modifier.height(2.dp))
+
                             Text(
                                 "Tugas Selesai",
                                 fontSize = 12.sp,
@@ -472,12 +522,16 @@ fun HomeScreen(navController: NavHostController) {
                             )
                         }
                     }
+
+                    // Pending tasks card - smaller version
                     Card(
                         modifier = Modifier
                             .weight(1f)
                             .height(100.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F1FA))
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE6F1FA)
+                        )
                     ) {
                         Column(
                             modifier = Modifier
@@ -492,7 +546,9 @@ fun HomeScreen(navController: NavHostController) {
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
+
                             Spacer(modifier = Modifier.height(2.dp))
+
                             Text(
                                 "Tugas Tertunda",
                                 fontSize = 12.sp,
@@ -505,6 +561,7 @@ fun HomeScreen(navController: NavHostController) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Project Groups section with + button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -514,10 +571,11 @@ fun HomeScreen(navController: NavHostController) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Project Groups",
+                            "Group Task",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
+
                         Text(
                             "${selectedProjects.size}",
                             fontSize = 14.sp,
@@ -525,20 +583,23 @@ fun HomeScreen(navController: NavHostController) {
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
+
                     IconButton(
                         onClick = { showProjectSelectionDialog = true },
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = "Add Project Shortcut",
-                            tint = Color.Black
+                            tint = Utama2
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Project Group cards
                 if (isProjectsLoading) {
                     Box(
                         modifier = Modifier
@@ -563,10 +624,18 @@ fun HomeScreen(navController: NavHostController) {
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(selectedProjects) { project ->
-                            ProjectCard(
+                            val group = groups.find { it.id == project.groupId } ?: Group(
+                                id = -1,
+                                name = "Unknown",
+                                icon = "fas fa-users"
+                            )
+                            ProjectCard1(
                                 project = project,
+                                group = group,
                                 onClick = {
-                                    navController.navigate("schedule/${userId}/${project.groupId ?: 0}/${project.id ?: 0}")
+                                    val groupId = project.groupId ?: 0
+                                    val projectId = project.id ?: 0
+                                    navController.navigate("project_detail/$userId/$groupId/$projectId")
                                 }
                             )
                         }
@@ -651,6 +720,7 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
+            // Project Selection Dialog
             if (showProjectSelectionDialog) {
                 ProjectSelectionDialog(
                     allProjects = allProjects,
@@ -675,6 +745,7 @@ fun ProjectSelectionDialog(
 ) {
     val selectedIds = remember { mutableStateListOf<Int>() }
 
+    // Initialize with currently selected project IDs
     LaunchedEffect(currentlySelected) {
         selectedIds.clear()
         currentlySelected.forEach { project ->
@@ -692,6 +763,7 @@ fun ProjectSelectionDialog(
                     .padding(16.dp)
                     .fillMaxWidth()
             ) {
+                // Dialog header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -761,6 +833,7 @@ fun ProjectSelectionDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -791,8 +864,9 @@ fun ProjectSelectionDialog(
 }
 
 @Composable
-fun ProjectCard(
+fun ProjectCard1(
     project: Project,
+    group: Group,
     onClick: () -> Unit
 ) {
     val projectColor = when ((project.id ?: 0) % 3) {
@@ -800,6 +874,37 @@ fun ProjectCard(
         1 -> Color(0xFFA0C4FF) to Color(0xFFD0E0FF)
         else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0)
     }
+
+    // Icon mapping seperti di ScheduleScreen
+    val iconMapping = mapOf(
+        "fas fa-users" to Icons.Default.Group,
+        "fas fa-folder" to Icons.Default.Folder,
+        "fas fa-star" to Icons.Default.Star,
+        "fas fa-home" to Icons.Default.Home,
+        "fas fa-tasks" to Icons.Default.List,
+        "fas fa-calendar" to Icons.Default.CalendarMonth,
+        "fas fa-book" to Icons.Default.Book,
+        "fas fa-bell" to Icons.Default.Notifications,
+        "fas fa-heart" to Icons.Default.Favorite,
+        "fas fa-check" to Icons.Default.CheckCircle,
+        "fas fa-envelope" to Icons.Default.Email,
+        "fas fa-image" to Icons.Default.Image,
+        "fas fa-file" to Icons.Default.Description,
+        "fas fa-clock" to Icons.Default.AccessTime,
+        "fas fa-cog" to Icons.Default.Settings,
+        "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+        "fas fa-tag" to Icons.Default.LocalOffer,
+        "fas fa-link" to Icons.Default.Link,
+        "fas fa-map" to Icons.Default.Place,
+        "fas fa-music" to Icons.Default.MusicNote,
+        "fas fa-phone" to Icons.Default.Call,
+        "fas fa-camera" to Icons.Default.PhotoCamera,
+        "fas fa-search" to Icons.Default.Search,
+        "fas fa-cloud" to Icons.Default.Cloud,
+        "fas fa-person" to Icons.Default.Person
+    )
+
+    val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Laptop
 
     Card(
         modifier = Modifier
@@ -823,8 +928,8 @@ fun ProjectCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Laptop,
-                    contentDescription = null,
+                    imageVector = selectedIcon,
+                    contentDescription = "${group.name} Icon",
                     tint = projectColor.first
                 )
             }
@@ -838,20 +943,22 @@ fun ProjectCard(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                val formattedDate = formatDateRange(project.startDate, project.endDate)
                 Text(
-                    formattedDate,
+                    formatDateRange(project.startDate, project.endDate),
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
             }
 
+            // Calculate the progress properly (or use project.progress if available)
+//            val progress = project.progress?.toFloat()?.div(100f) ?: 0.01f
             Box(
                 modifier = Modifier
                     .size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
+                    progress = { 0.02f },
                     modifier = Modifier.size(40.dp),
                     color = projectColor.first,
                     strokeWidth = 3.dp,
