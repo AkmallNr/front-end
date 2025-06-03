@@ -1,6 +1,5 @@
 package com.example.schedo.ui
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -97,7 +96,6 @@ val motivationalQuotes = listOf(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
-@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun PomodoroScreen(navController: NavHostController) {
     var totalSeconds by remember { mutableLongStateOf(20 * 60L) } // Default 20 menit
@@ -160,7 +158,6 @@ fun PomodoroScreen(navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-                .background(backgroundColor),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (isRunning) {
