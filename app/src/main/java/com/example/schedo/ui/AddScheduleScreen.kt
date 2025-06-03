@@ -1,17 +1,15 @@
 package com.example.schedo.ui
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,27 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.schedo.model.Group
-import com.example.schedo.model.Project
 import com.example.schedo.model.Schedule
-import com.example.schedo.model.User
-import com.example.schedo.network.GroupRequest
-import com.example.schedo.network.ProjectRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.Utama2
-import com.example.schedo.util.PreferencesHelper
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.*
-import android.app.TimePickerDialog
-import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,24 +49,44 @@ fun AddScheduleScreen(
     var endTime by remember { mutableStateOf(scheduleToEdit?.endTime ?: "") }
     var repeat by remember { mutableStateOf(scheduleToEdit?.repeat ?: false) }
 
-    val day = scheduleToEdit?.day
-        ?: currentWeekStart.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.LONG, Locale.getDefault()).orEmpty()
+    // Mendapatkan hari saat ini
+    val currentDate = Calendar.getInstance()
+    val dayFormat = SimpleDateFormat("EEEE", Locale("id", "ID"))
+    val day = scheduleToEdit?.day ?: dayFormat.format(currentDate.time)
 
-    // TimePicker dialog handler
-    fun showTimePicker(onTimeSelected: (String) -> Unit) {
+    // Formatter untuk DateTimePicker
+    val dateTimeFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID"))
+
+    // Fungsi untuk menampilkan DateTimePicker (DatePicker diikuti TimePicker)
+    fun showDateTimePicker(onDateTimeSelected: (String) -> Unit) {
+        Log.d("AddScheduleScreen", "showDateTimePicker called")
         val calendar = Calendar.getInstance()
-        val hour = calendar.get(Calendar.HOUR_OF_DAY)
-        val minute = calendar.get(Calendar.MINUTE)
 
-        TimePickerDialog(
+        // Tampilkan DatePickerDialog
+        DatePickerDialog(
             context,
-            { _, selectedHour, selectedMinute ->
-                val formattedTime = String.format("%02d:%02d", selectedHour, selectedMinute)
-                onTimeSelected(formattedTime)
+            { _, year, month, dayOfMonth ->
+                Log.d("AddScheduleScreen", "Date selected: $dayOfMonth/${month + 1}/$year")
+                calendar.set(year, month, dayOfMonth)
+                // Setelah memilih tanggal, tampilkan TimePickerDialog
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        Log.d("AddScheduleScreen", "Time selected: $hour:$minute")
+                        calendar.set(Calendar.HOUR_OF_DAY, hour)
+                        calendar.set(Calendar.MINUTE, minute)
+                        val formattedDateTime = dateTimeFormat.format(calendar.time)
+                        Log.d("AddScheduleScreen", "Formatted DateTime: $formattedDateTime")
+                        onDateTimeSelected(formattedDateTime)
+                    },
+                    calendar.get(Calendar.HOUR_OF_DAY),
+                    calendar.get(Calendar.MINUTE),
+                    true
+                ).show()
             },
-            hour,
-            minute,
-            true
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
         ).show()
     }
 
@@ -157,26 +163,47 @@ fun AddScheduleScreen(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
-                    value = startTime,
-                    onValueChange = {},
-                    label = { Text("Start Time") },
+                // Menggunakan Surface untuk menangani klik
+                Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { showTimePicker { startTime = it } },
-                    singleLine = true,
-                    readOnly = true
-                )
-                OutlinedTextField(
-                    value = endTime,
-                    onValueChange = {},
-                    label = { Text("End Time") },
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            Log.d("AddScheduleScreen", "Start Time clicked")
+                            showDateTimePicker { startTime = it }
+                        },
+                    color = Color.Transparent
+                ) {
+                    OutlinedTextField(
+                        value = startTime,
+                        onValueChange = {},
+                        label = { Text("Start Time") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        readOnly = true,
+                        enabled = false // Nonaktifkan interaksi langsung pada TextField
+                    )
+                }
+                Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { showTimePicker { endTime = it } },
-                    singleLine = true,
-                    readOnly = true
-                )
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            Log.d("AddScheduleScreen", "End Time clicked")
+                            showDateTimePicker { endTime = it }
+                        },
+                    color = Color.Transparent
+                ) {
+                    OutlinedTextField(
+                        value = endTime,
+                        onValueChange = {},
+                        label = { Text("End Time") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        readOnly = true,
+                        enabled = false // Nonaktifkan interaksi langsung pada TextField
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -204,13 +231,19 @@ fun AddScheduleScreen(
                         repeat = repeat
                     )
                     coroutineScope.launch {
-                        if (scheduleToEdit == null) {
-                            apiService.addSchedule(userId, schedule)
-                        } else {
-                            apiService.updateSchedule(userId, schedule)
+                        try {
+                            Log.d("AddScheduleScreen", "Saving schedule with day: $day, startTime: $startTime, endTime: $endTime")
+                            if (scheduleToEdit == null) {
+                                apiService.addSchedule(userId, schedule)
+                            } else {
+                                apiService.updateSchedule(userId, schedule)
+                            }
+                            onScheduleAdded()
+                            onDismiss()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Log.e("AddScheduleScreen", "Failed to save schedule", e)
                         }
-                        onScheduleAdded()
-                        onDismiss()
                     }
                 },
                 modifier = Modifier
@@ -224,6 +257,3 @@ fun AddScheduleScreen(
         }
     }
 }
-
-
-
