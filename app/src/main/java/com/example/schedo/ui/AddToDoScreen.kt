@@ -58,7 +58,7 @@ fun AddTodoScreen(
     var showProjectModal by remember { mutableStateOf(true) }
 
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val isoSdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ", Locale.getDefault())
+    val isoSdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
     val initialStartDate = project?.startDate?.let {
         try {
@@ -747,7 +747,7 @@ fun ProjectTextField(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(16.dp),
             color = Color(0xFFF5F5F5)
         ) {
             OutlinedTextField(
@@ -757,7 +757,7 @@ fun ProjectTextField(
                     .fillMaxWidth()
                     .background(Color.Transparent),
                 colors = TextFieldDefaults.outlinedTextFieldColors(
-                    focusedBorderColor = Color.Transparent,
+                    focusedBorderColor = Utama2,
                     unfocusedBorderColor = Color.Transparent,
                     containerColor = Color.Transparent
                 ),

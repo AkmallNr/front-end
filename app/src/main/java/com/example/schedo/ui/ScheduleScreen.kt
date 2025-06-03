@@ -27,11 +27,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
-import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
-import com.example.schedo.util.PreferencesHelper
 import com.example.schedo.ui.formatDateRange
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey2
@@ -39,6 +37,21 @@ import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import com.example.schedo.util.PreferencesHelper
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
+import com.example.schedo.model.Schedule
+import com.example.schedo.model.Attachment
+import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
@@ -75,7 +88,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
 
     val backgroundColor = Background
-    val selectedTabColor = Color(0xFFFFC278)
+    val selectedTabColor = Utama2
 
     fun fetchSchedules() {
         coroutineScope.launch {
@@ -231,102 +244,124 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     1 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween // Memastikan konten terdistribusi
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
-                                Text("<")
-                            }
-                            var expanded by remember { mutableStateOf(false) }
-                            Box {
-                                Text(
-                                    text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
-                                    modifier = Modifier.clickable { expanded = true }
-                                )
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    val months = DateFormatSymbols().months
-                                    months.forEachIndexed { index, month ->
-                                        DropdownMenuItem(
-                                            text = { Text(month) },
-                                            onClick = {
-                                                currentWeekStart.set(Calendar.MONTH, index)
-                                                currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
-                                                currentWeekStart = getWeekStartDate(currentWeekStart)
-                                                expanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
-                                Text(">")
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val dates = getWeekDates(currentWeekStart)
-                            val days = listOf("M", "S", "S", "R", "K", "J", "S")
-                            days.forEachIndexed { index, day ->
-                                Card(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(4.dp)
-                                        .clickable { },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH))
-                                            Color(0xFFFFC278) else Color.White
-                                    )
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(day)
-                                        Text(dates[index].toString())
-                                    }
-                                }
-                            }
-                        }
-
-                        Text(
-                            text = "Jadwal Hari Ini",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-
-                        if (isLoading) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        } else if (schedules.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("Tidak ada jadwal", color = Color.Gray)
-                            }
-                        } else {
-                            LazyColumn(
+                        // Bagian atas - Header & Calendar
+                        Column {
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .padding(vertical = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                items(schedules) { schedule ->
-                                    ScheduleCard(schedule, userId, groupId) { action ->
-                                        when (action) {
-                                            "edit" -> selectedSchedule = schedule
-                                            "delete" -> coroutineScope.launch {
-                                                apiService.deleteSchedule(userId, schedule.id)
-                                                fetchSchedules()
+                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
+                                    Text("<")
+                                }
+                                var expanded by remember { mutableStateOf(false) }
+                                Box {
+                                    Text(
+                                        text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
+                                        modifier = Modifier.clickable { expanded = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false }
+                                    ) {
+                                        val months = DateFormatSymbols().months
+                                        months.forEachIndexed { index, month ->
+                                            DropdownMenuItem(
+                                                text = { Text(month) },
+                                                onClick = {
+                                                    currentWeekStart.set(Calendar.MONTH, index)
+                                                    currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
+                                                    currentWeekStart = getWeekStartDate(currentWeekStart)
+                                                    expanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
+                                    Text(">")
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                val dates = getWeekDates(currentWeekStart)
+                                val days = listOf("M", "S", "S", "R", "K", "J", "S")
+                                days.forEachIndexed { index, day ->
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(4.dp)
+                                            .clickable { },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH))
+                                                Utama2 else Color.White
+                                        )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(day)
+                                            Text(dates[index].toString())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Bagian tengah - Jadwal
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Jadwal Hari Ini",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            )
+
+                            when {
+                                isLoading -> {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = Utama2)
+                                    }
+                                }
+
+                                schedules.isEmpty() -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Tidak ada jadwal", color = Color.Gray)
+                                    }
+                                }
+
+                                else -> {
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(schedules) { schedule ->
+                                            ScheduleCard(schedule, userId, groupId) { action ->
+                                                when (action) {
+                                                    "edit" -> selectedSchedule = schedule
+                                                    "delete" -> coroutineScope.launch {
+                                                        apiService.deleteSchedule(userId, schedule.id)
+                                                        fetchSchedules()
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -334,23 +369,42 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        Button(
-                            onClick = { showAddSchedule = true },
+                        // Bagian bawah - Tombol Tambah Jadwal
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.End)
-                                .padding(bottom = 16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
-                            Text("Tambah Jadwal")
+                            Button(
+                                onClick = { showAddSchedule = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Utama2,
+                                    contentColor = Color.White
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = 4.dp,
+                                    pressedElevation = 8.dp
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Tambah Jadwal",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Tambah Jadwal", fontWeight = FontWeight.Medium)
+                            }
                         }
 
                         if (showAddSchedule || selectedSchedule != null) {
-                            AddScheduleDialog(
-                                navController,
-                                userId,
-                                groupId,
-                                currentWeekStart,
+                            AddScheduleScreen(
+                                navController = navController,
+                                userId = userId,
+                                groupId = groupId,
+                                currentWeekStart = currentWeekStart,
                                 onDismiss = { showAddSchedule = false; selectedSchedule = null },
                                 scheduleToEdit = selectedSchedule,
                                 onScheduleAdded = { fetchSchedules() }
@@ -841,9 +895,18 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
                 // Spasi tak terlihat untuk menyeimbangkan tata letak
                 Box(modifier = Modifier.size(40.dp))
+                IconButton(onClick = {}, enabled = false) {
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowBack,
+                        contentDescription = null,
+                        tint = Color.Transparent
+                    )
+                }
+
             }
 
             // Kartu Proyek - Dapat diklik untuk edit dengan tombol hapus
+            // Detail Proyek Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1107,7 +1170,6 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             }
         }
 
-        // Tombol Tambah Tugas
         Button(
             onClick = {
                 if (userId != -1 && groupId != -1 && projectId != 0) {

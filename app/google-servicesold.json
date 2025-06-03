@@ -22,22 +22,6 @@
           }
         },
         {
-          "client_id": "1089309830161-qcv3pumldh8bvj5ocmh3pe13j21tq1of.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.schedo",
-            "certificate_hash": "b3409f2cdbe833f271d83731d6481c14e0eGoogle Sign-In gagal: 12500\n                                                                                                    com.google.android.gms.common.api.ApiException: 12500: ce523"
-          }
-        },
-        {
-          "client_id": "1089309830161-uk0dfp4r0o1b6to3br1cnv2r4n6964gh.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.schedo",
-            "certificate_hash": "aea34c427b5f7d778d6cf2939cb32b2126929905"
-          }
-        },
-        {
           "client_id": "1089309830161-mg7gircvhlr3ltge0qnge4ntnt5sg4gd.apps.googleusercontent.com",
           "client_type": 3
         }

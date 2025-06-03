@@ -1,5 +1,8 @@
 package com.example.schedo.ui
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -40,7 +43,10 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.receiver.NotificationReceiver
+import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey1
+import com.example.schedo.ui.theme.Grey2
 import com.example.schedo.ui.theme.Utama1
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
@@ -58,11 +64,15 @@ import com.google.auth.http.HttpCredentialsAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File as JavaFile
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import com.google.gson.Gson
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.window.Popup
 
-// Fungsi utilitas tetap sama
 suspend fun uploadFileToDrive(
     context: Context,
     fileUri: Uri,
@@ -95,10 +105,12 @@ suspend fun uploadFileToDrive(
             }
             android.util.Log.d("UploadFileToDrive", "Mengunggah $fileName ke folder ID: $folderId")
 
+            // Membuat metadata file tanpa permissions
             val fileMetadata = File()
                 .setName(fileName)
                 .setParents(listOf(folderId))
 
+            // Mendapatkan file dari URI
             val contentResolver = context.contentResolver
             val inputStreamFile = contentResolver.openInputStream(fileUri)
             if (inputStreamFile == null) {
@@ -116,17 +128,20 @@ suspend fun uploadFileToDrive(
 
             val mediaContent = com.google.api.client.http.FileContent(getMimeType(fileName), tempFile)
 
+            // Mengunggah file ke Google Drive
             val uploadedFile = driveService.files().create(fileMetadata, mediaContent)
                 .setFields("id, webViewLink")
                 .execute()
             android.util.Log.d("UploadFileToDrive", "File berhasil diunggah: ${uploadedFile.webViewLink}")
 
+            // Mengatur izin file agar dapat diakses oleh "anyone" dengan peran "reader"
             val permission = Permission()
                 .setType("anyone")
                 .setRole("reader")
             driveService.permissions().create(uploadedFile.id, permission).execute()
             android.util.Log.d("UploadFileToDrive", "Izin file berhasil diatur: anyone dengan peran reader")
 
+            // Mengembalikan URL publik
             uploadedFile.webViewLink.also {
                 tempFile.delete()
             }
@@ -137,6 +152,7 @@ suspend fun uploadFileToDrive(
     }
 }
 
+// Utility functions
 fun getFileNameFromUri(context: Context, uri: Uri): String? {
     return when (uri.scheme) {
         "content" -> {
@@ -152,6 +168,10 @@ fun getFileNameFromUri(context: Context, uri: Uri): String? {
         "file" -> JavaFile(uri.path).name
         else -> null
     }
+}
+
+fun getFileNameFromUrl(url: String): String {
+    return url.substringAfterLast("/", "UnnamedFile")
 }
 
 fun isUrl(text: String): Boolean {
@@ -174,6 +194,7 @@ fun TimePickerDialog(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun AddTaskScreen(
     navController: NavHostController,
@@ -188,6 +209,7 @@ fun AddTaskScreen(
     android.util.Log.d("AddTaskScreen", "Received taskId: $taskId, isNull: ${taskId == null}")
     val context = LocalContext.current
     var taskTitle by remember { mutableStateOf(TextFieldValue(task?.name ?: "")) }
+    val uploadedAttachments = remember { mutableStateListOf<String>() }
     var note by remember { mutableStateOf(task?.description ?: "") }
     var reminder by remember { mutableStateOf(task?.reminder ?: "Tidak") }
     var priority by remember { mutableStateOf(task?.priority ?: "Normal") }
@@ -256,6 +278,7 @@ fun AddTaskScreen(
         isLoadingQuotes = false
     }
 
+    // Dialog untuk menambahkan quote baru
     if (showAddQuoteDialog) {
         AddQuoteDialog(
             onDismiss = { showAddQuoteDialog = false },
@@ -328,6 +351,7 @@ fun AddTaskScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // Deadline section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline", tint = Utama2) },
                     title = "Batas waktu",
@@ -335,6 +359,7 @@ fun AddTaskScreen(
                     onClick = { showDeadlineDatePicker = true }
                 )
 
+                // reminder section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder", tint = Utama2) },
                     title = "Pengingat",
@@ -350,6 +375,8 @@ fun AddTaskScreen(
                     }
                 )
 
+
+                // note section
                 if (note.isEmpty()) {
                     EnhancedTaskOptionRow(
                         icon = { Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2) },
@@ -362,6 +389,7 @@ fun AddTaskScreen(
                     NoteSection(note = note, onClick = { showNoteDialog = true })
                 }
 
+                // attachment section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2) },
                     title = "Lampiran",
@@ -543,6 +571,7 @@ fun AddTaskScreen(
                 }
             }
 
+            // TimePicker Dialog
             if (showDeadlineTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = { showDeadlineTimePicker = false },
@@ -574,6 +603,7 @@ fun AddTaskScreen(
                 }
             }
 
+            // Reminder DatePicker Dialog
             if (showReminderDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = {
@@ -612,6 +642,7 @@ fun AddTaskScreen(
                 }
             }
 
+            // Reminder TimePicker Dialog
             if (showReminderTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = {
@@ -650,6 +681,7 @@ fun AddTaskScreen(
                 }
             }
 
+            // Note Dialog
             if (showNoteDialog) {
                 AlertDialog(
                     onDismissRequest = { showNoteDialog = false },
@@ -681,6 +713,7 @@ fun AddTaskScreen(
                 )
             }
 
+            // Attachment Dialog
             if (showAttachmentDialog) {
                 AttachmentDialogContent(
                     attachmentList = attachmentList,
@@ -1138,7 +1171,6 @@ fun EditQuoteDialog(
     )
 }
 
-// Komponen lainnya tetap sama
 @Composable
 fun PrioritySection(
     priority: String,
@@ -1696,6 +1728,8 @@ fun AttachmentDialogContent(
         }
     )
 }
+
+
 
 private fun getMimeType(url: String): String? {
     val extension = url.substringAfterLast(".", "").lowercase()
