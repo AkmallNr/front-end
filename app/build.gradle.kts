@@ -125,6 +125,15 @@ dependencies {
     implementation ("androidx.navigation:navigation-compose:2.7.6")
     coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:2.0.4")
     coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:1.1.5")
+
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // OkHttp for multipart file uploads
+    implementation ("com.squareup.okhttp3:okhttp:4.9.3")
+
+    // Optional: Logging interceptor for debugging API calls
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.9.3")
     implementation ("com.squareup.okhttp3:okhttp:4.12.0") // Pastikan versi terbaru
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")

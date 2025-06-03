@@ -1,6 +1,13 @@
 package com.example.schedo.ui
 
+import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
+import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,9 +23,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,15 +44,127 @@ import com.example.schedo.model.Task
 import com.example.schedo.model.User
 import com.example.schedo.network.ApiService
 import com.example.schedo.network.RetrofitInstance
+import com.example.schedo.network.WeeklyCompletedTasksData
 import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
 import com.example.schedo.utils.calculateTaskProgress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.provider.Settings
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
 
+@Composable
+fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
+    val daysOrder = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val dayLabels = listOf("S", "S", "R", "K", "J", "S", "M")
+    val tasksCount = daysOrder.map { data.tasks[it] ?: 0 }
+    val maxTasks = (tasksCount.maxOrNull()?.toFloat() ?: 1f).let { if (it == 0f) 1f else it }
+
+    val barColors = listOf(
+        Color(0xFFFF7043), Color(0xFF388E3C), Color(0xFF66BB6A),
+        Color(0xFFFFCA28), Color(0xFFEC407A), Color(0xFF1976D2),
+        Color(0xFF42A5F5)
+    )
+
+    val chartHeight = 200.dp
+    val minBarHeight = 10.dp
+
+    val minBarHeightPx = with(LocalDensity.current) { minBarHeight.toPx() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(chartHeight)
+                .background(Color.White, RoundedCornerShape(8.dp))
+                .padding(8.dp)
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val canvasWidth = size.width
+                val canvasHeight = size.height
+                val barWidth = canvasWidth / 10f
+                val spacing = canvasWidth / 14f
+                val maxHeightPx = canvasHeight * 0.8f
+
+                val yStep = if (maxTasks <= 1) 1f else (maxTasks / 4f).coerceAtLeast(1f)
+                val yMax = (maxTasks / yStep).toInt().coerceAtLeast(1) * yStep
+
+                for (i in 0..(yMax / yStep).toInt()) {
+                    val yValue = i * yStep
+                    val yPos = canvasHeight - (yValue / yMax * maxHeightPx)
+                    drawLine(
+                        color = Color.LightGray.copy(alpha = 0.5f),
+                        start = Offset(0f, yPos),
+                        end = Offset(canvasWidth, yPos),
+                        strokeWidth = 1f
+                    )
+                    drawContext.canvas.nativeCanvas.drawText(
+                        String.format("%.1f", yValue),
+                        0f,
+                        yPos + 15f,
+                        android.graphics.Paint().apply {
+                            color = android.graphics.Color.BLACK
+                            textSize = 20f
+                        }
+                    )
+                }
+
+                tasksCount.forEachIndexed { index, count ->
+                    val barHeightPx = (count / maxTasks * maxHeightPx).coerceAtLeast(minBarHeightPx)
+                    val left = index * spacing + (spacing - barWidth) / 2
+                    drawRect(
+                        color = barColors[index % barColors.size],
+                        topLeft = Offset(left, canvasHeight - barHeightPx),
+                        size = Size(barWidth, barHeightPx)
+                    )
+                    drawContext.canvas.nativeCanvas.drawText(
+                        count.toString(),
+                        left + barWidth / 2,
+                        canvasHeight - barHeightPx - 10f,
+                        android.graphics.Paint().apply {
+                            color = android.graphics.Color.BLACK
+                            textSize = 20f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                    )
+                }
+
+                dayLabels.forEachIndexed { index, label ->
+                    val xPos = index * spacing + spacing / 2
+                    drawContext.canvas.nativeCanvas.drawText(
+                        label,
+                        xPos,
+                        canvasHeight - 10f,
+                        android.graphics.Paint().apply {
+                            color = android.graphics.Color.BLACK
+                            textSize = 20f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun HomeScreen(navController: NavHostController) {
     val context = LocalContext.current
@@ -66,7 +189,16 @@ fun HomeScreen(navController: NavHostController) {
     // State for project selection dialog
     var showProjectSelectionDialog by remember { mutableStateOf(false) }
 
-    // Define fetchUserData function
+    var weeklyCompletedTasks by remember { mutableStateOf<WeeklyCompletedTasksData?>(null) }
+    var isWeeklyTasksLoading by remember { mutableStateOf(false) }
+    var currentWeekStart by remember { mutableStateOf(Calendar.getInstance().apply {
+        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.time) }
+
     fun fetchUserData() {
         coroutineScope.launch {
             isLoading = true
@@ -106,7 +238,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define fetchProjects function
     fun fetchProjects() {
         coroutineScope.launch {
             isProjectsLoading = true
@@ -115,7 +246,6 @@ fun HomeScreen(navController: NavHostController) {
                 allProjects.clear()
                 allProjects.addAll(response.data)
 
-                // Load saved selected projects or default to empty if none saved
                 val savedProjectIds = preferencesHelper.getSelectedProjectIds().mapNotNull { it.toIntOrNull() }
                 val initialSelected = allProjects.filter { project ->
                     project.id?.let { savedProjectIds.contains(it) } ?: false
@@ -133,7 +263,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define fetchGroups function
     fun fetchGroups() {
         coroutineScope.launch {
             isLoading = true
@@ -151,7 +280,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define fetchTask function
     fun fetchTask() {
         coroutineScope.launch {
             isLoading = true
@@ -169,7 +297,30 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define logout function
+    fun fetchWeeklyCompletedTasks(weekStart: Date) {
+        coroutineScope.launch {
+            isWeeklyTasksLoading = true
+            try {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                val weekStartString = dateFormat.format(weekStart)
+                val response = RetrofitInstance.api.getWeeklyCompletedTasks(userId, weekStartString)
+                if (response.isSuccessful) {
+                    weeklyCompletedTasks = response.body()?.data
+                    Log.d("HomeScreen", "Weekly completed tasks fetched: ${weeklyCompletedTasks}")
+                } else {
+                    Log.e("HomeScreen", "Failed to fetch weekly completed tasks: ${response.code()}")
+                    Toast.makeText(context, "Gagal memuat tugas selesai mingguan", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("HomeScreen", "Error fetching weekly completed tasks: ${e.message}")
+                e.printStackTrace()
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isWeeklyTasksLoading = false
+            }
+        }
+    }
+
     fun logout() {
         preferencesHelper.clearSession()
         navController.navigate("login") {
@@ -177,17 +328,30 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Load data on initialization
     LaunchedEffect(Unit) {
         if (userId != -1) {
             fetchUserData()
             fetchProjects()
             fetchGroups()
             fetchTask()
+            fetchWeeklyCompletedTasks(currentWeekStart)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                context.startActivity(intent)
+            }
         }
     }
 
-    // Save selected projects to preferences
+    LaunchedEffect(currentWeekStart) {
+        if (userId != -1) {
+            fetchWeeklyCompletedTasks(currentWeekStart)
+        }
+    }
+
     fun saveSelectedProjects(projects: List<Project>) {
         selectedProjects.clear()
         selectedProjects.addAll(projects)
@@ -198,272 +362,364 @@ fun HomeScreen(navController: NavHostController) {
 
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(Background)
+                    .padding(vertical = 50.dp)
             ) {
                 // Top bar with greeting and icons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                            }
-                        } else if (user?.profile_picture != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(user?.profile_picture)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Profile Picture",
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Gray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = user?.name?.firstOrNull()?.toString() ?: "?",
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Hello !", fontSize = 16.sp, color = Color.DarkGray)
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             if (isLoading) {
-                                LinearProgressIndicator(
-                                    modifier = Modifier.width(80.dp),
-                                    color = MaterialTheme.colorScheme.primary
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.LightGray),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            } else if (user?.profile_picture != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(user?.profile_picture)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                                 )
-                            } else if (user != null && userId != -1) {
-                                Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             } else {
-                                Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Log in to access your projects",
-                                    fontSize = 14.sp,
-                                    color = Color.Gray,
-                                    modifier = Modifier.clickable {
-                                        navController.navigate("login") {
-                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Gray),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = user?.name?.firstOrNull()?.toString() ?: "?",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Hello !", fontSize = 16.sp, color = Color.DarkGray)
+                                if (isLoading) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.width(80.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else if (user != null && userId != -1) {
+                                    Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Log in to access your projects",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.clickable {
+                                            navController.navigate("login") {
+                                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                            }
                                         }
-                                    }
+                                    )
+                                }
+                            }
+                        }
+
+                        Row {
+                            IconButton(onClick = { /* Handle notifications */ }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = Color.Black
+                                )
+                            }
+                            IconButton(onClick = { logout() }) {
+                                Icon(
+                                    imageVector = Icons.Filled.ExitToApp,
+                                    contentDescription = "Logout",
+                                    tint = Color.Black
                                 )
                             }
                         }
                     }
-
-                    Row {
-                        IconButton(onClick = { /* Handle notifications */ }) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications",
-                                tint = Color.Black
-                            )
-                        }
-                        IconButton(onClick = { logout() }) {
-                            Icon(
-                                imageVector = Icons.Filled.ExitToApp,
-                                contentDescription = "Logout",
-                                tint = Color.Black
-                            )
-                        }
-                    }
                 }
 
-                // Task summary section
-                Text(
-                    "Ringkasan Tugas",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                item { Spacer(modifier = Modifier.height(24.dp)) }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                item {
+                    Text(
+                        "Ringkasan Tugas",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
 
-                // Menghitung tugas selesai dan tertunda
-                val completedTasks = allTasks.count { it.status == true }
-                val pendingTasks = allTasks.count { it.status == false || it.status == null }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
 
-                // Task summary cards in a more compact row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Completed tasks card
-                    Card(
+                item {
+                    val completedTasks = allTasks.count { it.status == true }
+                    val pendingTasks = allTasks.count { it.status == false || it.status == null }
+
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFE6F1FA)
-                        )
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
+                        Card(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFE6F1FA)
+                            )
                         ) {
-                            Text(
-                                completedTasks.toString(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    completedTasks.toString(),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    "Tugas Selesai",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFE6F1FA)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                "Tugas Selesai",
-                                fontSize = 12.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    pendingTasks.toString(),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    "Tugas Tertunda",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
+                }
 
-                    // Pending tasks card
-                    Card(
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                item {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFE6F1FA)
-                        )
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                pendingTasks.toString(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
+                                "Group Task",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+
                             Text(
-                                "Tugas Tertunda",
-                                fontSize = 12.sp,
+                                "${selectedProjects.size}",
+                                fontSize = 14.sp,
                                 color = Color.Gray,
-                                textAlign = TextAlign.Center
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showProjectSelectionDialog = true },
+                            modifier = Modifier
+                                .size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Add Project Shortcut",
+                                tint = Utama2
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Project Groups section with + button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Project Groups",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "${selectedProjects.size}",
-                            fontSize = 14.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { showProjectSelectionDialog = true },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = "Add Project Shortcut",
-                            tint = Color.Black
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
+                item { Spacer(modifier = Modifier.height(8.dp)) }
 
                 // Project Group cards
                 if (isProjectsLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 } else if (selectedProjects.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("No projects selected", color = Color.Gray)
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No projects selected", color = Color.Gray)
+                        }
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(selectedProjects) { project ->
-                            val group = groups.find { it.id == project.groupId } ?: Group(
-                                id = -1,
-                                name = "Unknown",
-                                icon = "fas fa-users"
-                            )
-                            ProjectCard1(
-                                project = project,
-                                group = group,
-                                userId = userId, // Lewatkan userId dari HomeScreen
-                                groupId = project.groupId ?: 0, // Gunakan groupId dari proyek
-                                apiService = RetrofitInstance.api, // Lewatkan instance ApiService
-                                onClick = {
-                                    val groupId = project.groupId ?: 0
-                                    val projectId = project.id ?: 0
-                                    navController.navigate("project_detail/$userId/$groupId/$projectId")
+                    items(selectedProjects) { project ->
+                        val group = groups.find { it.id == project.groupId } ?: Group(
+                            id = -1,
+                            name = "Unknown",
+                            icon = "fas fa-users"
+                        )
+                        ProjectCard1(
+                            project = project,
+                            group = group,
+                            userId = userId,
+                            groupId = project.groupId ?: 0,
+                            apiService = RetrofitInstance.api,
+                            onClick = {
+                                val groupId = project.groupId ?: 0
+                                val projectId = project.id ?: 0
+                                navController.navigate("project_detail/$userId/$groupId/$projectId")
+                            }
+                        )
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                item {
+                    Text(
+                        "Tugas Selesai di Minggu Ini",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+
+                if (isWeeklyTasksLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else if (weeklyCompletedTasks == null) {
+                    item {
+                        Text(
+                            "Gagal memuat tugas selesai",
+                            fontSize = 16.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                } else {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
+                                        calendar.add(Calendar.WEEK_OF_YEAR, -1)
+                                        currentWeekStart = calendar.time
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowBack,
+                                        contentDescription = "Previous Week",
+                                        tint = Color.Black
+                                    )
                                 }
-                            )
+                                Text(
+                                    text = "< ${weeklyCompletedTasks!!.date_range} >",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.Gray
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
+                                        calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                                        currentWeekStart = calendar.time
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowForward,
+                                        contentDescription = "Next Week",
+                                        tint = Color.Black
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            WeeklyTasksBarChart(data = weeklyCompletedTasks!!)
                         }
                     }
                 }
@@ -628,6 +884,7 @@ fun ProjectCard1(
         else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0) // Green
     }
 
+    // Icon mapping seperti di ScheduleScreen
     val iconMapping = mapOf(
         "fas fa-users" to Icons.Default.Group,
         "fas fa-folder" to Icons.Default.Folder,
@@ -719,7 +976,8 @@ fun ProjectCard1(
                 )
             }
 
-            // Progress indicator berdasarkan tugas yang selesai
+            // Calculate the progress properly (or use project.progress if available)
+//            val progress = project.progress?.toFloat()?.div(100f) ?: 0.01f
             Box(
                 modifier = Modifier
                     .size(40.dp),

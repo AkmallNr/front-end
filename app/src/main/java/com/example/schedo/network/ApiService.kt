@@ -8,6 +8,7 @@ import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
 import com.example.schedo.response.*
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -44,6 +45,7 @@ interface ApiService {
     @GET("users")
     suspend fun getUsers(): Response<UserResponse>
 
+    // 🔹 Endpoint baru: Mendapatkan semua proyek berdasarkan userId
     @GET("users/{userId}/projects")
     suspend fun getProjectsByUser(
         @Path("userId") userId: Int
@@ -54,11 +56,15 @@ interface ApiService {
         @Path("userId") userId: Int
     ): TaskResponse
 
+    // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int
     ): ProjectResponse
+
+//    @POST("users")
+//    suspend fun createUser(@Body user: User): Response<User>
 
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)
@@ -105,6 +111,14 @@ interface ApiService {
         @Path("projectId") projectId: Int
     ): TaskResponse
 
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
+    suspend fun getTaskById(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int,
+        @Path("taskId") taskId: Int
+    ): TaskResponse
+
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun updateTask(
         @Path("userId") userId: Int,
@@ -113,6 +127,13 @@ interface ApiService {
         @Path("taskId") taskId: Int,
         @Body taskRequest: TaskRequest
     ): Response<Task>
+
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/completed-today")
+    suspend fun getCompletedTasksCountToday(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int
+    ): CompletedTasksResponse
 
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}")
     suspend fun updateProject(
@@ -168,6 +189,15 @@ interface ApiService {
         @Path("id") id: Int
     ): Response<Unit>
 
+    @Multipart
+    @POST("upload-file")
+    suspend fun uploadFile(
+        @Part file: MultipartBody.Part?,
+        @Part("link") link: RequestBody?
+    ): Response<FileUploadResponse>
+
+    // 🔹 Endpoint baru: Login dengan Google
+//  @POST("users/{userId}/google-login")
     @POST("google-login")
     suspend fun loginWithGoogle(
         @Body token: Map<String, String>
@@ -186,9 +216,36 @@ interface ApiService {
         @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int
     ): TaskResponse
+
+    @GET("users/{userId}/tasks/weekly-completed")
+    suspend fun getWeeklyCompletedTasks(
+        @Path("userId") userId: Int,
+        @Query("week_start") weekStart: String? = null
+    ): Response<WeeklyCompletedTasksResponse>
 }
 
-// Data classes remain unchanged
+data class WeeklyCompletedTasksResponse(
+    val data: WeeklyCompletedTasksData
+)
+
+data class WeeklyCompletedTasksData(
+    val date_range: String,
+    val tasks: Map<String, Int>,
+    val week_start: String // Tambahkan untuk menyimpan tanggal mulai minggu
+)
+
+data class FileUploadResponse(
+    val success: Boolean,
+    val data: FileUploadData,
+    val message: String
+)
+
+data class FileUploadData(
+    val file_url: String?,
+    val file_name: String?,
+    val link: String?
+)
+
 data class ScheduleRequest(
     val name: String,
     val notes: String,
@@ -212,7 +269,7 @@ data class ProjectRequest(
     val description: String,
     val startDate: String?,
     val endDate: String,
-    val groupId: Int? = null
+    val groupId: Int? = null // Add groupId to allow updating the group
 )
 
 data class TaskRequest(
@@ -225,4 +282,12 @@ data class TaskRequest(
     val attachment: List<String>? = null,
     val status: Boolean? = null,
     val quoteId: Int? = null
+)
+
+data class CompletedTasksResponse(
+    val data: CompletedTasksData
+)
+
+data class CompletedTasksData(
+    val completed_today: Int
 )
