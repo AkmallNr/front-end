@@ -11,7 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.example.schedo.R
 import com.example.schedo.model.Quote
@@ -46,7 +48,6 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import kotlinx.coroutines.launch
-//import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import com.google.api.services.drive.DriveScopes
@@ -57,7 +58,11 @@ import com.google.auth.http.HttpCredentialsAdapter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File as JavaFile
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.window.Popup
 
+// Fungsi utilitas tetap sama
 suspend fun uploadFileToDrive(
     context: Context,
     fileUri: Uri,
@@ -81,7 +86,6 @@ suspend fun uploadFileToDrive(
                 HttpCredentialsAdapter(credentials)
             ).setApplicationName("Schedo").build()
 
-            // Menentukan folder tujuan berdasarkan jenis file
             val folderId = when {
                 fileName.lowercase().endsWith(".pdf") -> pdfFolderId
                 fileName.lowercase().endsWith(".jpg") ||
@@ -91,12 +95,10 @@ suspend fun uploadFileToDrive(
             }
             android.util.Log.d("UploadFileToDrive", "Mengunggah $fileName ke folder ID: $folderId")
 
-            // Membuat metadata file tanpa permissions
             val fileMetadata = File()
                 .setName(fileName)
                 .setParents(listOf(folderId))
 
-            // Mendapatkan file dari URI
             val contentResolver = context.contentResolver
             val inputStreamFile = contentResolver.openInputStream(fileUri)
             if (inputStreamFile == null) {
@@ -114,20 +116,17 @@ suspend fun uploadFileToDrive(
 
             val mediaContent = com.google.api.client.http.FileContent(getMimeType(fileName), tempFile)
 
-            // Mengunggah file ke Google Drive
             val uploadedFile = driveService.files().create(fileMetadata, mediaContent)
                 .setFields("id, webViewLink")
                 .execute()
             android.util.Log.d("UploadFileToDrive", "File berhasil diunggah: ${uploadedFile.webViewLink}")
 
-            // Mengatur izin file agar dapat diakses oleh "anyone" dengan peran "reader"
             val permission = Permission()
                 .setType("anyone")
                 .setRole("reader")
             driveService.permissions().create(uploadedFile.id, permission).execute()
             android.util.Log.d("UploadFileToDrive", "Izin file berhasil diatur: anyone dengan peran reader")
 
-            // Mengembalikan URL publik
             uploadedFile.webViewLink.also {
                 tempFile.delete()
             }
@@ -138,7 +137,6 @@ suspend fun uploadFileToDrive(
     }
 }
 
-// Utility functions
 fun getFileNameFromUri(context: Context, uri: Uri): String? {
     return when (uri.scheme) {
         "content" -> {
@@ -159,7 +157,6 @@ fun getFileNameFromUri(context: Context, uri: Uri): String? {
 fun isUrl(text: String): Boolean {
     return text.startsWith("http://") || text.startsWith("https://")
 }
-
 
 @Composable
 fun TimePickerDialog(
@@ -202,21 +199,25 @@ fun AddTaskScreen(
     var showDeadlineTimePicker by remember { mutableStateOf(false) }
     var showReminderDatePicker by remember { mutableStateOf(false) }
     var showReminderTimePicker by remember { mutableStateOf(false) }
-    var showPriorityDropdown by remember { mutableStateOf(false) }
-    var showQuoteDropdown by remember { mutableStateOf(false) }
+    var showPriorityPopup by remember { mutableStateOf(false) }
+    var showQuoteDialog by remember { mutableStateOf(false) }
     var showAddQuoteDialog by remember { mutableStateOf(false) }
 
     var quotes by remember { mutableStateOf<List<Quote>>(emptyList()) }
     var isLoadingQuotes by remember { mutableStateOf(true) }
+    // Tambahkan state untuk memicu refresh quotes
+    var refreshQuotes by remember { mutableStateOf(0) }
 
+    val calendar = Calendar.getInstance()
+    calendar.set(2025, 4, 21, 19, 48) // Set to 07:48 PM WIB, May 21, 2025
     var selectedDeadlineDate by remember {
         mutableStateOf(
-            SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(Calendar.getInstance().time))
+            SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(calendar.time))
         )
     }
     var selectedReminderDate by remember {
         mutableStateOf(
-            if (task?.reminder != null && task.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task.reminder) else Calendar.getInstance().time
+            if (task?.reminder != null && task.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(task.reminder) else calendar.time
         )
     }
 
@@ -238,15 +239,14 @@ fun AddTaskScreen(
 
     val scope = rememberCoroutineScope()
 
-    // Fetch quotes when screen is displayed
-    LaunchedEffect(userId) {
+    // Modifikasi LaunchedEffect untuk memantau perubahan refreshQuotes
+    LaunchedEffect(userId, refreshQuotes) {
         isLoadingQuotes = true
         try {
             val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
             quotes = quoteResponse
         } catch (e: Exception) {
             e.printStackTrace()
-            // Show error toast
             Toast.makeText(
                 context,
                 "Gagal memuat quotes: ${e.localizedMessage}",
@@ -256,7 +256,6 @@ fun AddTaskScreen(
         isLoadingQuotes = false
     }
 
-    // Dialog untuk menambahkan quote baru
     if (showAddQuoteDialog) {
         AddQuoteDialog(
             onDismiss = { showAddQuoteDialog = false },
@@ -267,11 +266,8 @@ fun AddTaskScreen(
                             userId = userId,
                             quoteRequest = QuoteRequest(content = content)
                         )
-
-                        // Refresh quotes list
-                        val quoteResponse = RetrofitInstance.api.getQuotes(userId).data
-                        quotes = quoteResponse
-
+                        // Setelah menambah quote, tambahkan refreshQuotes untuk memicu pengambilan ulang
+                        refreshQuotes += 1
                         Toast.makeText(
                             context,
                             "Quote berhasil ditambahkan!",
@@ -290,22 +286,19 @@ fun AddTaskScreen(
         )
     }
 
-    // ID folder untuk "image" dan "pdf" di Google Drive
-    val imageFolderId = "1CVmSom-5q4DW5_WtHChVLq7JthcwQR7h" // Ganti dengan ID folder "image"
-    val pdfFolderId = "1hUwlfEyg04tq8-Zlusmb2MFJOFqD1upo"     // Ganti dengan ID folder "pdf"
-
+    val imageFolderId = "1CVmSom-5q4DW5_WtHChVLq7JthcwQR7h"
+    val pdfFolderId = "1hUwlfEyg04tq8-Zlusmb2MFJOFqD1upo"
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (taskId == null) "Add Task" else "Edit Task", fontSize = 20.sp, fontWeight = FontWeight.Medium) },
+                title = { Text(if (taskId == null) "Add Task" else "Edit Task", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Utama3)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-//                    containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = Color.Black
                 )
             )
@@ -324,8 +317,8 @@ fun AddTaskScreen(
                     onValueChange = { taskTitle = it },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 20.sp),
-                    placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp, color = Grey1) },
+                    textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    placeholder = { Text("Masukkan judul tugas", fontSize = 18.sp, color = Grey1, fontWeight = FontWeight.Bold) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Utama2,
                         unfocusedBorderColor = Grey1
@@ -335,7 +328,6 @@ fun AddTaskScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Deadline section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline", tint = Utama2) },
                     title = "Batas waktu",
@@ -343,7 +335,6 @@ fun AddTaskScreen(
                     onClick = { showDeadlineDatePicker = true }
                 )
 
-                // reminder section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder", tint = Utama2) },
                     title = "Pengingat",
@@ -359,8 +350,6 @@ fun AddTaskScreen(
                     }
                 )
 
-
-                // note section
                 if (note.isEmpty()) {
                     EnhancedTaskOptionRow(
                         icon = { Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2) },
@@ -373,7 +362,6 @@ fun AddTaskScreen(
                     NoteSection(note = note, onClick = { showNoteDialog = true })
                 }
 
-                // attachment section
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2) },
                     title = "Lampiran",
@@ -390,12 +378,11 @@ fun AddTaskScreen(
                 PrioritySection(
                     priority = priority,
                     options = priorityOptions,
-                    showDropdown = showPriorityDropdown,
-                    onShowDropdownChange = { showPriorityDropdown = it },
+                    showPopup = showPriorityPopup,
+                    onShowPopupChange = { showPriorityPopup = it },
                     onPrioritySelected = { priority = it }
                 )
 
-                // Add Quote section here after Priority
                 if (isLoadingQuotes) {
                     Box(
                         modifier = Modifier
@@ -409,10 +396,16 @@ fun AddTaskScreen(
                     QuoteSection(
                         selectedQuote = selectedQuote,
                         quotes = quotes,
-                        showDropdown = showQuoteDropdown,
-                        onShowDropdownChange = { showQuoteDropdown = it },
+                        showDialog = showQuoteDialog,
+                        onShowDialogChange = { showQuoteDialog = it },
                         onQuoteSelected = { selectedQuote = it },
-                        onAddNewQuoteClick = { showAddQuoteDialog = true }
+                        onAddNewQuoteClick = { showAddQuoteDialog = true },
+                        userId = userId,
+                        onQuotesUpdated = { updatedQuotes ->
+                            quotes = updatedQuotes
+                            // Tambahkan refreshQuotes untuk memicu pengambilan ulang setelah update
+                            refreshQuotes += 1
+                        }
                     )
                 }
 
@@ -434,24 +427,18 @@ fun AddTaskScreen(
                             reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
                             priority = priority,
                             attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
-                            status = task?.status ?: false
+                            status = task?.status ?: false,
+                            quoteId = selectedQuote?.id
                         )
 
                         scope.launch {
-                            android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
-                            // Mengunggah file ke Google Drive menggunakan Service Account
                             val uploadedAttachments = mutableListOf<String>()
-                            android.util.Log.d("AddTaskScreen", "Jumlah lampiran: ${attachmentList?.size ?: 0}")
                             attachmentList?.forEach { (fileName, uri) ->
-                                android.util.Log.d("AddTaskScreen", "Mengunggah file: $fileName dengan URI: $uri")
                                 if (!isUrl(fileName)) {
-                                    android.util.Log.d("AddTaskScreen", "File bukan URL, mengunggah ke Google Drive")
                                     val driveUrl = uploadFileToDrive(context, uri, fileName, imageFolderId, pdfFolderId)
                                     if (driveUrl != null) {
                                         uploadedAttachments.add(driveUrl)
-                                        android.util.Log.d("AddTaskScreen", "Berhasil mengunggah $fileName: $driveUrl")
                                     } else {
-                                        android.util.Log.e("AddTaskScreen", "Gagal mengunggah $fileName")
                                         Toast.makeText(
                                             context,
                                             "Gagal mengunggah $fileName. Periksa Logcat untuk detail.",
@@ -460,23 +447,19 @@ fun AddTaskScreen(
                                     }
                                 } else {
                                     uploadedAttachments.add(fileName)
-                                    android.util.Log.d("AddTaskScreen", "Lampiran adalah URL: $fileName")
                                 }
                             }
-
-                            android.util.Log.d("AddTaskScreen", "Semua lampiran selesai diunggah: $uploadedAttachments")
-                            val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                             val taskRequest = TaskRequest(
+                                id = task?.id,
                                 name = taskTitle.text.trim(),
                                 description = note.trim(),
                                 deadline = dateFormat.format(selectedDeadlineDate),
                                 reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
                                 priority = priority,
                                 attachment = uploadedAttachments,
-                                status = false,
+                                status = task?.status ?: false,
                                 quoteId = selectedQuote?.id
                             )
-
 
                             try {
                                 val response = if (taskId == null) {
@@ -485,9 +468,28 @@ fun AddTaskScreen(
                                     RetrofitInstance.api.updateTask(userId, groupId, projectId, taskId, taskRequest)
                                 }
                                 if (response.isSuccessful) {
+                                    val updatedTask = response.body()!!
                                     Toast.makeText(context, if (taskId == null) "Tugas berhasil disimpan!" else "Tugas berhasil diperbarui!", Toast.LENGTH_SHORT).show()
-                                    onTaskAdded(response.body()!!)
-                                    navController.popBackStack()
+                                    onTaskAdded(updatedTask)
+                                    // Reset state untuk refresh UI
+                                    taskTitle = TextFieldValue(updatedTask.name)
+                                    note = updatedTask.description ?: ""
+                                    reminder = updatedTask.reminder ?: "Tidak"
+                                    priority = updatedTask.priority ?: "Normal"
+                                    selectedDeadlineDate = SimpleDateFormat("yyyy/MM/dd HH:mm").parse(updatedTask.deadline ?: dateFormat.format(calendar.time))
+                                    selectedReminderDate = if (updatedTask.reminder != null && updatedTask.reminder != "Tidak") SimpleDateFormat("yyyy/MM/dd HH:mm").parse(updatedTask.reminder) else calendar.time
+                                    attachmentList = null
+                                    selectedQuote = quotes.find { it.id == updatedTask.quoteId }
+                                    // Tutup semua dialog
+                                    showDeadlineDatePicker = false
+                                    showDeadlineTimePicker = false
+                                    showReminderDatePicker = false
+                                    showReminderTimePicker = false
+                                    showNoteDialog = false
+                                    showAttachmentDialog = false
+                                    showPriorityPopup = false
+                                    showQuoteDialog = false
+                                    showAddQuoteDialog = false
                                 } else {
                                     val errorMessage = "Gagal ${if (taskId == null) "menyimpan" else "memperbarui"} tugas: ${response.code()} - ${response.message()}"
                                     android.util.Log.e("AddTaskScreen", errorMessage)
@@ -504,30 +506,36 @@ fun AddTaskScreen(
                     shape = RoundedCornerShape(24.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                 ) {
-                    Text(if (taskId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp)
+                    Text(if (taskId == null) "Simpan Tugas" else "Simpan Perubahan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
 
-            // DatePicker Dialog
+            // Dialog tetap sama
             if (showDeadlineDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = { showDeadlineDatePicker = false },
                     confirmButton = {
-                        Button(onClick = {
-                            deadlineDatePickerState.selectedDateMillis?.let { millis ->
-                                val calendar = Calendar.getInstance()
-                                calendar.timeInMillis = millis
-                                selectedDeadlineDate = calendar.time
-                                showDeadlineDatePicker = false
-                                showDeadlineTimePicker = true
-                            }
-                        }) {
-                            Text("Pilih Jam")
+                        Button(
+                            onClick = {
+                                deadlineDatePickerState.selectedDateMillis?.let { millis ->
+                                    val calendar = Calendar.getInstance()
+                                    calendar.timeInMillis = millis
+                                    selectedDeadlineDate = calendar.time
+                                    showDeadlineDatePicker = false
+                                    showDeadlineTimePicker = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Pilih Jam", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     dismissButton = {
-                        Button(onClick = { showDeadlineDatePicker = false }) {
-                            Text("Batal")
+                        Button(
+                            onClick = { showDeadlineDatePicker = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 ) {
@@ -535,25 +543,30 @@ fun AddTaskScreen(
                 }
             }
 
-            // TimePicker Dialog
             if (showDeadlineTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = { showDeadlineTimePicker = false },
                     confirmButton = {
-                        Button(onClick = {
-                            val calendar = Calendar.getInstance()
-                            calendar.time = selectedDeadlineDate
-                            calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
-                            calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
-                            selectedDeadlineDate = calendar.time
-                            showDeadlineTimePicker = false
-                        }) {
-                            Text("Simpan")
+                        Button(
+                            onClick = {
+                                val calendar = Calendar.getInstance()
+                                calendar.time = selectedDeadlineDate
+                                calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
+                                calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
+                                selectedDeadlineDate = calendar.time
+                                showDeadlineTimePicker = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     dismissButton = {
-                        Button(onClick = { showDeadlineTimePicker = false }) {
-                            Text("Batal")
+                        Button(
+                            onClick = { showDeadlineTimePicker = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 ) {
@@ -561,7 +574,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // Reminder DatePicker Dialog
             if (showReminderDatePicker) {
                 DatePickerDialog(
                     onDismissRequest = {
@@ -569,24 +581,30 @@ fun AddTaskScreen(
                         reminder = "Tidak"
                     },
                     confirmButton = {
-                        Button(onClick = {
-                            reminderDatePickerState.selectedDateMillis?.let { millis ->
-                                val calendar = Calendar.getInstance()
-                                calendar.timeInMillis = millis
-                                selectedReminderDate = calendar.time
-                                showReminderDatePicker = false
-                                showReminderTimePicker = true
-                            }
-                        }) {
-                            Text("Pilih Jam")
+                        Button(
+                            onClick = {
+                                reminderDatePickerState.selectedDateMillis?.let { millis ->
+                                    val calendar = Calendar.getInstance()
+                                    calendar.timeInMillis = millis
+                                    selectedReminderDate = calendar.time
+                                    showReminderDatePicker = false
+                                    showReminderTimePicker = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Pilih Jam", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     dismissButton = {
-                        Button(onClick = {
-                            showReminderDatePicker = false
-                            reminder = "Tidak"
-                        }) {
-                            Text("Batal")
+                        Button(
+                            onClick = {
+                                showReminderDatePicker = false
+                                reminder = "Tidak"
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 ) {
@@ -594,7 +612,6 @@ fun AddTaskScreen(
                 }
             }
 
-            // Reminder TimePicker Dialog
             if (showReminderTimePicker) {
                 TimePickerDialog(
                     onDismissRequest = {
@@ -602,24 +619,30 @@ fun AddTaskScreen(
                         reminder = "Tidak"
                     },
                     confirmButton = {
-                        Button(onClick = {
-                            val calendar = Calendar.getInstance()
-                            calendar.time = selectedReminderDate
-                            calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
-                            calendar.set(Calendar.MINUTE, reminderTimePickerState.minute)
-                            selectedReminderDate = calendar.time
-                            reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
-                            showReminderTimePicker = false
-                        }) {
-                            Text("Simpan")
+                        Button(
+                            onClick = {
+                                val calendar = Calendar.getInstance()
+                                calendar.time = selectedReminderDate
+                                calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
+                                calendar.set(Calendar.MINUTE, reminderTimePickerState.minute)
+                                selectedReminderDate = calendar.time
+                                reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
+                                showReminderTimePicker = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     dismissButton = {
-                        Button(onClick = {
-                            showReminderTimePicker = false
-                            reminder = "Tidak"
-                        }) {
-                            Text("Batal")
+                        Button(
+                            onClick = {
+                                showReminderTimePicker = false
+                                reminder = "Tidak"
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                        ) {
+                            Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 ) {
@@ -627,18 +650,23 @@ fun AddTaskScreen(
                 }
             }
 
-            // Note Dialog
             if (showNoteDialog) {
                 AlertDialog(
                     onDismissRequest = { showNoteDialog = false },
                     confirmButton = {
-                        TextButton(onClick = { showNoteDialog = false }) {
-                            Text("Simpan")
+                        TextButton(
+                            onClick = { showNoteDialog = false },
+                            colors = ButtonDefaults.textButtonColors(containerColor = Utama2)
+                        ) {
+                            Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showNoteDialog = false }) {
-                            Text("Batal")
+                        TextButton(
+                            onClick = { showNoteDialog = false },
+                            colors = ButtonDefaults.textButtonColors(containerColor = Utama2)
+                        ) {
+                            Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     text = {
@@ -646,13 +674,13 @@ fun AddTaskScreen(
                             value = note,
                             onValueChange = { note = it },
                             modifier = Modifier.fillMaxWidth(),
-                            minLines = 4
+                            minLines = 4,
+                            textStyle = TextStyle(fontWeight = FontWeight.Bold)
                         )
                     }
                 )
             }
 
-            // Attachment Dialog
             if (showAttachmentDialog) {
                 AttachmentDialogContent(
                     attachmentList = attachmentList,
@@ -670,126 +698,20 @@ fun AddTaskScreen(
 fun QuoteSection(
     selectedQuote: Quote?,
     quotes: List<Quote>,
-    showDropdown: Boolean,
-    onShowDropdownChange: (Boolean) -> Unit,
+    showDialog: Boolean,
+    onShowDialogChange: (Boolean) -> Unit,
     onQuoteSelected: (Quote) -> Unit,
-    onAddNewQuoteClick: () -> Unit
+    onAddNewQuoteClick: () -> Unit,
+    userId: Int,
+    onQuotesUpdated: (List<Quote>) -> Unit
 ) {
+    var selectedQuoteForOptions by remember { mutableStateOf<Quote?>(null) }
+    var showQuoteOptionsDialog by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
-                .clickable { onShowDropdownChange(true) }
-                .padding(vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.FormatQuote, contentDescription = "Quote")
-                    }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "Quote Motivasi",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(end = 4.dp)
-                    ) {
-                        Text(
-                            text = selectedQuote?.content ?: "Pilih Quote",
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = "Dropdown"
-                    )
-                }
-            }
-        }
-        DropdownMenu(
-            expanded = showDropdown,
-            onDismissRequest = { onShowDropdownChange(false) },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .widthIn(max = 300.dp)
-        ) {
-            quotes.forEach { quote ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = quote.content.take(40).let { if (it.length == 40) "$it..." else it },
-                            fontSize = 16.sp
-                        )
-                    },
-                    onClick = {
-                        onQuoteSelected(quote)
-                        onShowDropdownChange(false)
-                    }
-                )
-            }
-
-            Divider()
-
-            DropdownMenuItem(
-                text = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add New Quote"
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Tambah Quote Baru",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                },
-                onClick = {
-                    onAddNewQuoteClick()
-                    onShowDropdownChange(false)
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun PrioritySection(
-    priority: String,
-    options: List<String>,
-    showDropdown: Boolean,
-    onShowDropdownChange: (Boolean) -> Unit,
-    onPrioritySelected: (String) -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .clickable { onShowDropdownChange(true) }
+                .clickable { onShowDialogChange(true) }
                 .padding(vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -803,15 +725,17 @@ fun PrioritySection(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.Flag, contentDescription = "Priority", tint = Utama2)
-                    }
+                    Icon(
+                        imageVector = Icons.Default.FormatQuote,
+                        contentDescription = "Quote",
+                        tint = Utama2
+                    )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = "Prioritas",
+                    text = "Quote Motivasi",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
             Box(modifier = Modifier.weight(1f)) {
@@ -820,40 +744,489 @@ fun PrioritySection(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(end = 4.dp)
+                    Button(
+                        onClick = { onShowDialogChange(true) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = selectedQuote?.content?.take(20)?.let { if (it.length == 20) "$it..." else it } ?: "Pilih Quote",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { onShowDialogChange(false) }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Pilih Quote",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+
+                    if (quotes.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Tidak ada quote yang ditemukan")
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            items(quotes) { quote ->
+                                QuoteCard(
+                                    quote = quote,
+                                    onClick = {
+                                        selectedQuoteForOptions = quote
+                                        showQuoteOptionsDialog = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                onAddNewQuoteClick()
+                                onShowDialogChange(false)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Utama2,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Tambah Quote Baru")
+                        }
+
+                        Button(
+                            onClick = { onShowDialogChange(false) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Utama2,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Text("Tutup")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showQuoteOptionsDialog && selectedQuoteForOptions != null) {
+        QuoteOptionsDialog(
+            quote = selectedQuoteForOptions!!,
+            userId = userId,
+            onSelect = {
+                onQuoteSelected(selectedQuoteForOptions!!)
+                showQuoteOptionsDialog = false
+                onShowDialogChange(false)
+            },
+            onEdit = { updatedQuote ->
+                val updatedQuotes = quotes.map { if (it.id == updatedQuote.id) updatedQuote else it }
+                onQuotesUpdated(updatedQuotes)
+                showQuoteOptionsDialog = false
+            },
+            onDelete = {
+                val updatedQuotes = quotes.filter { it.id != selectedQuoteForOptions!!.id }
+                onQuotesUpdated(updatedQuotes)
+                showQuoteOptionsDialog = false
+            },
+            onDismiss = { showQuoteOptionsDialog = false }
+        )
+    }
+}
+
+@Composable
+fun QuoteCard(quote: Quote, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Utama2, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FormatQuote,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Text(
+                text = quote.content.take(40).let { if (it.length == 40) "$it..." else it },
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+
+            Icon(
+                imageVector = Icons.Default.ArrowForwardIos,
+                contentDescription = "Pilih Quote",
+                tint = Color.Gray,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun QuoteOptionsDialog(
+    quote: Quote,
+    userId: Int,
+    onSelect: () -> Unit,
+    onEdit: (Quote) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Pilihan Quote",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4A4A4A)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Pilih aksi untuk quote ini",
+                    fontSize = 16.sp,
+                    color = Color(0xFF757575)
+                )
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = Color.White,
+        confirmButton = {
+            Button(
+                onClick = onSelect,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Utama2,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Text("Pilih")
+            }
+        },
+        dismissButton = {
+            Row {
+                Button(
+                    onClick = { showEditDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Utama2,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("Edit")
+                }
+                Button(
+                    onClick = {
+                        if (quote.id != null) {
+                            coroutineScope.launch {
+                                val response = RetrofitInstance.api.deleteQuote(userId, quote.id)
+                                if (response.isSuccessful) {
+                                    onDelete()
+                                } else {
+                                    android.util.Log.e("QuoteOptionsDialog", "Delete failed: ${response.message()}")
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE57373),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("Hapus")
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Utama2,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Batal")
+                }
+            }
+        }
+    )
+
+    if (showEditDialog) {
+        EditQuoteDialog(
+            quote = quote,
+            userId = userId,
+            onDismiss = { showEditDialog = false },
+            onQuoteUpdated = { updatedQuote ->
+                onEdit(updatedQuote)
+                showEditDialog = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditQuoteDialog(
+    quote: Quote,
+    userId: Int,
+    onDismiss: () -> Unit,
+    onQuoteUpdated: (Quote) -> Unit
+) {
+    var content by remember { mutableStateOf(quote.content) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Quote",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4A4A4A)
+            )
+        },
+        text = {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    OutlinedTextField(
+                        value = content,
+                        onValueChange = { content = it },
+                        label = { Text("Isi Quote", color = Color(0xFF757575)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp)),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Utama2,
+                            unfocusedBorderColor = Color(0xFFB0BEC5)
+                        ),
+                        maxLines = 5,
+                        textStyle = TextStyle(fontWeight = FontWeight.Bold)
+                    )
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            color = Color(0xFFD32F2F),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (content.isNotEmpty() && !isLoading && quote.id != null) {
+                        isLoading = true
+                        coroutineScope.launch {
+                            try {
+                                val quoteRequest = QuoteRequest(content = content)
+                                val response = RetrofitInstance.api.updateQuote(userId, quote.id, quoteRequest)
+                                if (response.isSuccessful) {
+                                    val updatedQuote = response.body()!!
+                                    onQuoteUpdated(updatedQuote)
+                                    onDismiss()
+                                } else {
+                                    errorMessage = "Gagal memperbarui quote: ${response.message()} (Code: ${response.code()})"
+                                }
+                            } catch (e: Exception) {
+                                errorMessage = "Error: ${e.message}"
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    } else {
+                        errorMessage = "Isi quote tidak boleh kosong atau ID tidak valid"
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Utama2,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                } else {
+                    Text("Simpan")
+                }
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Utama2,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Batal")
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        containerColor = Color(0xFFF5F5F5)
+    )
+}
+
+// Komponen lainnya tetap sama
+@Composable
+fun PrioritySection(
+    priority: String,
+    options: List<String>,
+    showPopup: Boolean,
+    onShowPopupChange: (Boolean) -> Unit,
+    onPrioritySelected: (String) -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .clickable { onShowPopupChange(true) }
+                .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = Utama1,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Flag, contentDescription = "Priority", tint = Utama2)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Prioritas",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { onShowPopupChange(true) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = priority,
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = "Dropdown"
-                    )
                 }
             }
         }
-        DropdownMenu(
-            expanded = showDropdown,
-            onDismissRequest = { onShowDropdownChange(false) },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-8).dp, y = 8.dp)
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option, fontSize = 16.sp) },
-                    onClick = {
-                        onPrioritySelected(option)
-                        onShowDropdownChange(false)
+        if (showPopup) {
+            Popup(
+                onDismissRequest = { onShowPopupChange(false) },
+                alignment = Alignment.TopEnd
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 8.dp
+                ) {
+                    Column {
+                        options.forEach { option ->
+                            Row(
+                                modifier = Modifier
+                                    .clickable {
+                                        onPrioritySelected(option)
+                                        onShowPopupChange(false)
+                                    }
+                                    .padding(16.dp)
+                                    .fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = option,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
-                )
+                }
             }
         }
     }
@@ -883,15 +1256,13 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2)
-                    }
+                    Icon(Icons.Default.Note, contentDescription = "Note", tint = Utama2)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Catatan",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -908,7 +1279,8 @@ fun NoteSection(note: String, onClick: () -> Unit) {
                 modifier = Modifier.padding(12.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold
             )
         }
         Divider(
@@ -937,20 +1309,18 @@ fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () ->
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = Utama1,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Attachment")
-                    }
+                    Icon(Icons.Default.AttachFile, contentDescription = "Attachment", tint = Utama2)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Lampiran",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -973,7 +1343,8 @@ fun AttachmentSection(attachmentList: List<Pair<String, String>>, onClick: () ->
                         modifier = Modifier.padding(8.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -992,20 +1363,20 @@ fun AddQuoteDialog(
 ) {
     var quoteContent by remember { mutableStateOf(TextFieldValue("")) }
 
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah Quote Baru") },
+        title = { Text("Tambah Quote Baru", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 OutlinedTextField(
                     value = quoteContent,
                     onValueChange = { quoteContent = it },
-                    label = { Text("Isi Quote") },
+                    label = { Text("Isi Quote", fontWeight = FontWeight.Bold) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
-                    maxLines = 5
+                    maxLines = 5,
+                    textStyle = TextStyle(fontWeight = FontWeight.Bold)
                 )
             }
         },
@@ -1017,14 +1388,18 @@ fun AddQuoteDialog(
                         onDismiss()
                     }
                 },
-                enabled = quoteContent.text.isNotBlank()
+                enabled = quoteContent.text.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
             ) {
-                Text("Simpan")
+                Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Batal")
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+            ) {
+                Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     )
@@ -1059,15 +1434,13 @@ fun EnhancedTaskOptionRow(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
-                        icon()
-                    }
+                    icon()
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = title,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1082,22 +1455,22 @@ fun EnhancedTaskOptionRow(
                                 text = value,
                                 fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
                     buttonStyle -> {
-                        Surface(
+                        Button(
+                            onClick = onClick,
                             shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                         ) {
                             Text(
                                 text = value,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -1106,7 +1479,8 @@ fun EnhancedTaskOptionRow(
                             text = value,
                             fontSize = 16.sp,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp)
+                            modifier = Modifier.padding(end = if (trailingIcon != null) 4.dp else 0.dp),
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -1138,8 +1512,11 @@ fun AttachmentDialogContent(
         onDismissRequest = onDismiss,
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Selesai")
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+            ) {
+                Text("Selesai", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         },
         text = {
@@ -1158,7 +1535,8 @@ fun AttachmentDialogContent(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .padding(4.dp)
+                            .padding(4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Link,
@@ -1174,7 +1552,8 @@ fun AttachmentDialogContent(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .padding(4.dp)
+                            .padding(4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Image,
@@ -1190,7 +1569,8 @@ fun AttachmentDialogContent(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .padding(4.dp)
+                            .padding(4.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.PictureAsPdf,
@@ -1205,25 +1585,28 @@ fun AttachmentDialogContent(
                         OutlinedTextField(
                             value = tempAttachment,
                             onValueChange = { tempAttachment = it },
-                            label = { Text("Masukkan URL (contoh: https://example.com)") },
+                            label = { Text("Masukkan URL (contoh: https://example.com)", fontWeight = FontWeight.Bold) },
                             modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
+                            textStyle = TextStyle(fontWeight = FontWeight.Bold)
                         )
                     }
                     isPhoto -> {
                         Button(
                             onClick = { filePickerLauncher.launch("image/*") },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                         ) {
-                            Text("Pilih Foto")
+                            Text("Pilih Foto", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                     isPdf -> {
                         Button(
                             onClick = { filePickerLauncher.launch("application/pdf") },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                         ) {
-                            Text("Pilih PDF")
+                            Text("Pilih PDF", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -1240,7 +1623,8 @@ fun AttachmentDialogContent(
                         }
                     },
                     enabled = tempAttachment.isNotEmpty() || (isPhoto || isPdf),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Add,
@@ -1250,7 +1634,7 @@ fun AttachmentDialogContent(
                 }
                 if (currentList.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Lampiran saat ini:")
+                    Text("Lampiran saat ini:", fontWeight = FontWeight.Bold)
                     currentList.forEach { (attachmentName, uri) ->
                         Row(
                             modifier = Modifier
@@ -1296,7 +1680,8 @@ fun AttachmentDialogContent(
                                 text = if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName,
                                 fontSize = 16.sp,
                                 modifier = Modifier.weight(1f),
-                                color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold
                             )
                             IconButton(onClick = {
                                 currentList = currentList - (attachmentName to uri)
@@ -1311,8 +1696,6 @@ fun AttachmentDialogContent(
         }
     )
 }
-
-
 
 private fun getMimeType(url: String): String? {
     val extension = url.substringAfterLast(".", "").lowercase()

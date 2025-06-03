@@ -30,7 +30,7 @@ fun formatDateRange(startDate: String?, endDate: String?): String {
         val startDateTime = dateFormat.parse(startDate)
         val endDateTime = dateFormat.parse(endDate)
 
-        val outputFormat = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
+        val outputFormat = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
         outputFormat.timeZone = TimeZone.getTimeZone("Asia/Jakarta")
 
         val formattedStart = outputFormat.format(startDateTime)

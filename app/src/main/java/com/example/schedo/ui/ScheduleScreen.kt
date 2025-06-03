@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -33,6 +34,7 @@ import com.example.schedo.network.TaskRequest
 import com.example.schedo.util.PreferencesHelper
 import com.example.schedo.ui.formatDateRange
 import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Grey2
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.ui.theme.Utama3
 import kotlinx.coroutines.launch
@@ -745,47 +747,82 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     val coroutineScope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<Task>() }
     var isLoading by remember { mutableStateOf(false) }
-    val backgroundColor = Background
     val apiService = RetrofitInstance.api
+    val groups = remember { mutableStateListOf<Group>() }
 
-    LaunchedEffect(Unit) {
-        println("ProjectDetailScreen dimuat dengan userId: $userId, groupId: $groupId, projectId: $projectId")
-    }
+    // Palet warna yang disesuaikan dengan tema kedua
+    val Background = Color(0xFFFFFBDA) // Latar belakang kuning muda
+    val Utama1 = Color(0xFFFFC278) // Oranye untuk tombol
+    val Utama2 = Color(0xFFFFBB70) // Oranye cerah untuk elemen aktif
+    val Utama3 = Color(0xFFED9455) // Oranye gelap untuk titik dan tanggal
+    val Grey1 = Color(0xFFd1d1d1) // Abu-abu untuk teks sekunder
+    val Grey2 = Color(0xFFEDF0F2) // Abu-abu sangat terang
 
-    LaunchedEffect(key1 = projectId) {
-        isLoading = true
-        try {
-            val response = apiService.getTask(userId, groupId, projectId).data
-            tasks.clear()
-            tasks.addAll(response)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
-        } finally {
-            isLoading = false
+    // Fungsi untuk mengambil tugas
+    fun fetchTasks() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = apiService.getTask(userId, groupId, projectId).data
+                tasks.clear()
+                tasks.addAll(response)
+                println("Tugas berhasil diambil: ${tasks.size} tugas untuk projectId: $projectId")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isLoading = false
+            }
         }
     }
+
+    // Ambil data grup untuk mendapatkan ikon grup
+    LaunchedEffect(Unit) {
+        try {
+            val response = apiService.getGroups(userId).data
+            groups.clear()
+            groups.addAll(response)
+            println("Grup berhasil diambil: ${groups.size} grup untuk userId: $userId")
+        } catch (e: Exception) {
+            println("Gagal mengambil grup untuk userId: $userId - Error: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // Ambil tugas saat layar dimuat
+    LaunchedEffect(key1 = projectId) {
+        fetchTasks()
+    }
+
+    // Temukan grup berdasarkan groupId
+    val group = groups.find { it.id == groupId } ?: Group(id = -1, name = "Unknown", icon = "fas fa-users")
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .background(Background)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .padding(bottom = 72.dp)
+                .padding(bottom = 80.dp)
         ) {
+            // Header dengan tombol kembali dan judul
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
+                IconButton(
+                    onClick = { navController.popBackStack() }
+                ) {
                     Icon(
-                        imageVector = Icons.Outlined.ArrowBack,
+                        imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Kembali",
-                        tint = Utama3
+                        tint = Utama3,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -793,110 +830,210 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
                 Text(
                     text = "Detail Proyek",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    ),
+                    color = Color.Black
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                IconButton(onClick = {}, enabled = false) {
-                    Icon(
-                        imageVector = Icons.Outlined.ArrowBack,
-                        contentDescription = null,
-                        tint = Color.Transparent
-                    )
-                }
+                // Spasi tak terlihat untuk menyeimbangkan tata letak
+                Box(modifier = Modifier.size(40.dp))
             }
 
+            // Kartu Proyek - Dapat diklik untuk edit dengan tombol hapus
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+                    .clickable {
+                        navController.navigate("add_todo/$userId/$groupId/$projectId")
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Box(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = project.name ?: "Tanpa Nama",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row {
-                            IconButton(onClick = {
-                                navController.navigate("add_todo/$userId/$groupId/$projectId")
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Proyek",
-                                    tint = Utama2
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = project.name ?: "Tanpa Nama",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                ),
+                                color = Color.Black
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Grey1
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Tanggal dengan titik oranye
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            color = Utama3,
+                                            shape = CircleShape
+                                        )
                                 )
-                            }
-                            IconButton(onClick = {
-                                println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
-                                coroutineScope.launch {
-                                    try {
-                                        val response = apiService.deleteProject(userId, groupId, projectId)
-                                        if (response == Unit) {
-                                            navController.popBackStack()
-                                            Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
-                                        }
-                                    } catch (e: HttpException) {
-                                        when (e.code()) {
-                                            403 -> {
-                                                println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
-                                                Toast.makeText(
-                                                    context,
-                                                    "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                            else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
-                                        }
-                                        e.printStackTrace()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
-                                        e.printStackTrace()
-                                    }
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Hapus Proyek",
-                                    tint = Color.Red
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = formatDateRange(project.startDate, project.endDate),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Utama3,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Ikon Grup dari proyek
+                        val iconMapping = mapOf(
+                            "fas fa-users" to Icons.Default.Group,
+                            "fas fa-folder" to Icons.Default.Folder,
+                            "fas fa-star" to Icons.Default.Star,
+                            "fas fa-home" to Icons.Default.Home,
+                            "fas fa-tasks" to Icons.Default.List,
+                            "fas fa-calendar" to Icons.Default.CalendarMonth,
+                            "fas fa-book" to Icons.Default.Book,
+                            "fas fa-bell" to Icons.Default.Notifications,
+                            "fas fa-heart" to Icons.Default.Favorite,
+                            "fas fa-check" to Icons.Default.CheckCircle,
+                            "fas fa-envelope" to Icons.Default.Email,
+                            "fas fa-image" to Icons.Default.Image,
+                            "fas fa-file" to Icons.Default.Description,
+                            "fas fa-clock" to Icons.Default.AccessTime,
+                            "fas fa-cog" to Icons.Default.Settings,
+                            "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+                            "fas fa-tag" to Icons.Default.LocalOffer,
+                            "fas fa-link" to Icons.Default.Link,
+                            "fas fa-map" to Icons.Default.Place,
+                            "fas fa-music" to Icons.Default.MusicNote,
+                            "fas fa-phone" to Icons.Default.Call,
+                            "fas fa-camera" to Icons.Default.PhotoCamera,
+                            "fas fa-search" to Icons.Default.Search,
+                            "fas fa-cloud" to Icons.Default.Cloud,
+                            "fas fa-person" to Icons.Default.Person
+                        )
+
+                        val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Group
+                        val tint = when (group.name?.lowercase() ?: group.icon?.lowercase() ?: "") {
+                            "office project", "laptop" -> Color(0xFFFF6F61)
+                            "personal project", "clipboard" -> Color(0xFF4FC3F7)
+                            "daily study", "chart" -> Color(0xFF81C784)
+                            else -> Utama2
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .background(
+                                    color = Color(0xFFFFE5E5),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = selectedIcon,
+                                contentDescription = "Ikon Grup",
+                                tint = tint,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = formatDateRange(project.startDate, project.endDate),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+
+                    // Tombol Hapus di pojok kanan atas
+                    IconButton(
+                        onClick = {
+                            println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
+                            coroutineScope.launch {
+                                try {
+                                    val response = apiService.deleteProject(userId, groupId, projectId)
+                                    if (response == Unit) {
+                                        navController.popBackStack()
+                                        Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: HttpException) {
+                                    when (e.code()) {
+                                        403 -> {
+                                            println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
+                                            Toast.makeText(
+                                                context,
+                                                "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                        else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    e.printStackTrace()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    e.printStackTrace()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Hapus Proyek",
+                            tint = Color.Red,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // Judul Bagian Tugas
             Text(
                 text = "Daftar Tugas",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                ),
+                color = Color.Black,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Daftar Tugas
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Utama2)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Utama2
+                    )
                 }
             } else if (tasks.isEmpty()) {
                 Box(
@@ -922,6 +1059,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             userId = userId,
                             groupId = groupId,
                             projectId = projectId,
+                            navController = navController,
                             onStatusChange = { updatedTask ->
                                 coroutineScope.launch {
                                     try {
@@ -938,7 +1076,8 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                             )
                                         )
                                         if (response.isSuccessful) {
-                                            tasks[tasks.indexOf(task)] = response.body()!!
+                                            // Refresh daftar tugas setelah pembaruan berhasil
+                                            fetchTasks()
                                             Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
                                         } else {
                                             Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
@@ -949,16 +1088,12 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                     }
                                 }
                             },
-                            onEditClick = {
-                                println("Edit diklik untuk taskId: ${task.id}")
-                                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
-                            },
                             onDeleteClick = {
                                 println("Mencoba menghapus tugas dengan userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
                                 coroutineScope.launch {
                                     try {
                                         apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)
-                                        tasks.remove(task)
+                                        fetchTasks() // Refresh daftar tugas setelah penghapusan
                                         Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
                                     } catch (e: Exception) {
                                         e.printStackTrace()
@@ -972,6 +1107,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             }
         }
 
+        // Tombol Tambah Tugas
         Button(
             onClick = {
                 if (userId != -1 && groupId != -1 && projectId != 0) {
@@ -989,7 +1125,9 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278)),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Utama1
+            ),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
                 pressedElevation = 0.dp
@@ -1002,31 +1140,34 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     }
 }
 
+
 @Composable
 fun TaskCard(
     task: Task,
     userId: Int,
     groupId: Int,
     projectId: Int,
+    navController: NavHostController,
     onStatusChange: (Task) -> Unit,
-    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val apiService = RetrofitInstance.api
+    val Utama3 = Color(0xFFED9455)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEditClick)
+            .clickable {
+                println("Edit diklik untuk taskId: ${task.id}")
+                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
+            }
             .padding(vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(8.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(12.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -1038,36 +1179,75 @@ fun TaskCard(
                         val updatedTask = task.copy(status = isChecked)
                         onStatusChange(updatedTask)
                     },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Utama3,
+                        uncheckedColor = Color.Gray
+                    ),
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 Column {
                     Text(
                         text = task.name ?: "Tanpa Nama",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = task.deadline?.let { formatDateRange(it, it) }?.split(" - ")?.get(0) ?: "Tanpa Batas",
+                    task.deadline?.let { deadline ->
+                        val formattedDateTime = formatTime(deadline)
+                        Text(
+                            text = "⏰: $formattedDateTime",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Utama3,
+                            fontSize = 12.sp
+                        )
+                    } ?: Text(
+                        text = "⏰: No Deadline",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = Utama3,
+                        fontSize = 12.sp
                     )
                 }
             }
-            Row {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Tugas",
-                    modifier = Modifier.clickable { onEditClick() }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        color = Color.Red,
+                        shape = CircleShape
+                    )
+            ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Hapus Tugas",
-                    modifier = Modifier.clickable { onDeleteClick() },
-                    tint = Color.Red
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
+    }
+}
+
+fun formatTime(deadline: String): String {
+    return try {
+        val parts = deadline.split(" ")
+        val datePart = parts[0].split("/")
+        val timePart = parts[1] // HH:MM
+
+        val day = datePart[2].toInt()
+        val month = datePart[1].toInt()
+        val year = datePart[0].toInt()
+
+        val monthNames = listOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        val monthName = monthNames[month - 1]
+
+        val time = timePart.substring(0, 5)
+
+        "$day $monthName $year, $time"
+    } catch (e: Exception) {
+        "Invalid Date"
     }
 }

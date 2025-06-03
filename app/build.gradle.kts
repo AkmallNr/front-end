@@ -58,6 +58,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.media3.common.ktx)
+    implementation(libs.androidx.compose.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -123,4 +125,9 @@ dependencies {
     implementation ("androidx.navigation:navigation-compose:2.7.6")
     coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:2.0.4")
     coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:1.1.5")
+    implementation ("com.squareup.okhttp3:okhttp:4.12.0") // Pastikan versi terbaru
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation ("androidx.compose.material3:material3:1.2.0")
 }

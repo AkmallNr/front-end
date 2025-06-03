@@ -3,23 +3,47 @@ package com.example.schedo.network
 import com.example.schedo.model.User
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
+import com.example.schedo.model.Quote
 import com.example.schedo.model.Schedule
 import com.example.schedo.model.Task
-import com.example.schedo.model.UserListResponse
 import com.example.schedo.response.*
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
 interface ApiService {
-    // Endpoint register baru
+    // Existing endpoints remain unchanged, adding quote-related endpoints
+    @GET("users/{userId}/quotes")
+    suspend fun getQuotes(
+        @Path("userId") userId: Int
+    ): QuoteResponse
+
+    @POST("users/{userId}/quotes")
+    suspend fun addQuotes(
+        @Path("userId") userId: Int,
+        @Body quoteRequest: QuoteRequest
+    ): Response<Quote>
+
+    @PUT("users/{userId}/quotes/{quoteId}")
+    suspend fun updateQuote(
+        @Path("userId") userId: Int,
+        @Path("quoteId") quoteId: Int,
+        @Body quoteRequest: QuoteRequest
+    ): Response<Quote>
+
+    @DELETE("users/{userId}/quotes/{quoteId}")
+    suspend fun deleteQuote(
+        @Path("userId") userId: Int,
+        @Path("quoteId") quoteId: Int
+    ): Response<Unit>
+
+    // Other existing endpoints (unchanged)
     @POST("register")
     suspend fun registerUser(@Body user: Map<String, String>): Response<User>
 
     @GET("users")
-    suspend fun getUsers(): Response<UserListResponse>
+    suspend fun getUsers(): Response<UserResponse>
 
-    // 🔹 Endpoint baru: Mendapatkan semua proyek berdasarkan userId
     @GET("users/{userId}/projects")
     suspend fun getProjectsByUser(
         @Path("userId") userId: Int
@@ -30,15 +54,11 @@ interface ApiService {
         @Path("userId") userId: Int
     ): TaskResponse
 
-    // 🔹 Endpoint lama: Mendapatkan proyek berdasarkan groupId (tetap dipertahankan)
     @GET("users/{userId}/groups/{groupId}/projects")
     suspend fun getProjectsByGroup(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int
     ): ProjectResponse
-
-//    @POST("users")
-//    suspend fun createUser(@Body user: User): Response<User>
 
     @DELETE("users/{userId}")
     suspend fun deleteUser(@Path("userId") id: Int)
@@ -78,7 +98,7 @@ interface ApiService {
         @Body taskRequest: TaskRequest
     ): Response<Task>
 
-    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks")
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/taskProject")
     suspend fun getTask(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int,
@@ -124,17 +144,6 @@ interface ApiService {
         @Part profilePicture: MultipartBody.Part
     ): Response<UserResponse2>
 
-    @GET("users/{userId}/quotes")
-    suspend fun getQuotes(
-        @Path("userId") userId: Int
-    ): QuoteResponse
-
-    @POST("users/{userId}/quotes")
-    suspend fun addQuotes(
-        @Path("userId") userId: Int,
-        @Body quoteRequest : QuoteRequest
-    )
-
     @GET("users/{userId}/schedules")
     suspend fun getSchedules(
         @Path("userId") userId: Int,
@@ -159,8 +168,6 @@ interface ApiService {
         @Path("id") id: Int
     ): Response<Unit>
 
-    // 🔹 Endpoint baru: Login dengan Google
-//  @POST("users/{userId}/google-login")
     @POST("google-login")
     suspend fun loginWithGoogle(
         @Body token: Map<String, String>
@@ -172,8 +179,16 @@ interface ApiService {
         @Path("groupId") groupId: Int,
         @Body groupRequest: GroupRequest
     ): Response<Group>
+
+    @GET("users/{userId}/groups/{groupId}/projects/{projectId}/taskProject")
+    suspend fun getTaskByProject(
+        @Path("userId") userId: Int,
+        @Path("groupId") groupId: Int,
+        @Path("projectId") projectId: Int
+    ): TaskResponse
 }
 
+// Data classes remain unchanged
 data class ScheduleRequest(
     val name: String,
     val notes: String,
@@ -197,7 +212,7 @@ data class ProjectRequest(
     val description: String,
     val startDate: String?,
     val endDate: String,
-    val groupId: Int? = null // Add groupId to allow updating the group
+    val groupId: Int? = null
 )
 
 data class TaskRequest(

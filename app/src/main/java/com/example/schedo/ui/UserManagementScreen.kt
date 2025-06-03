@@ -280,6 +280,8 @@ fun UserManagementScreen(navController: NavHostController) {
                     ) {
                         Text("Edit Grup")
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 // Tombol Logout di bagian bawah

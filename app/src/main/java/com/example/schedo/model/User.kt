@@ -6,5 +6,5 @@ data class User(
     val email: String,
     val quotes: List<Quote>,
     val groups: List<Group>,
-    val profile_picture: String? = null
+    val profile_picture: String? = null,
 )

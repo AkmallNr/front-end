@@ -31,9 +31,11 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.User
+import com.example.schedo.network.ApiService
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.util.PreferencesHelper
+import com.example.schedo.utils.calculateTaskProgress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -453,6 +455,9 @@ fun HomeScreen(navController: NavHostController) {
                             ProjectCard1(
                                 project = project,
                                 group = group,
+                                userId = userId, // Lewatkan userId dari HomeScreen
+                                groupId = project.groupId ?: 0, // Gunakan groupId dari proyek
+                                apiService = RetrofitInstance.api, // Lewatkan instance ApiService
                                 onClick = {
                                     val groupId = project.groupId ?: 0
                                     val projectId = project.id ?: 0
@@ -612,6 +617,9 @@ fun ProjectSelectionDialog(
 fun ProjectCard1(
     project: Project,
     group: Group,
+    userId: Int,
+    groupId: Int,
+    apiService: ApiService,
     onClick: () -> Unit
 ) {
     val projectColor = when ((project.id ?: 0) % 3) {
@@ -620,7 +628,6 @@ fun ProjectCard1(
         else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0) // Green
     }
 
-    // Icon mapping seperti di ScheduleScreen
     val iconMapping = mapOf(
         "fas fa-users" to Icons.Default.Group,
         "fas fa-folder" to Icons.Default.Folder,
@@ -650,6 +657,23 @@ fun ProjectCard1(
     )
 
     val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Laptop
+
+    // State untuk menyimpan daftar tugas
+    var tasks by remember { mutableStateOf<List<Task>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Ambil data tugas saat composable dirender
+    LaunchedEffect(project.id) {
+        coroutineScope.launch {
+            try {
+                val response = apiService.getTaskByProject(userId, groupId, project.id ?: 0)
+                tasks = response.data
+            } catch (e: Exception) {
+                // Tangani error (misalnya, log atau tampilkan pesan)
+                tasks = emptyList()
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -695,21 +719,22 @@ fun ProjectCard1(
                 )
             }
 
-            // Progress indicator (hardcoded to 2% as in original)
+            // Progress indicator berdasarkan tugas yang selesai
             Box(
                 modifier = Modifier
                     .size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val progress = calculateTaskProgress(tasks) / 100f
                 CircularProgressIndicator(
-                    progress = { 0.02f },
+                    progress = { progress },
                     modifier = Modifier.size(40.dp),
                     color = projectColor.first,
                     strokeWidth = 3.dp,
                     trackColor = Color.LightGray.copy(alpha = 0.3f)
                 )
                 Text(
-                    "2%",
+                    "${(progress * 100).toInt()}%",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )

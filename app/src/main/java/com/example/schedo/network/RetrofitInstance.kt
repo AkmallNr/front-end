@@ -15,7 +15,7 @@ object RetrofitInstance {
 
     val api: ApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8000/api/")
+            .baseUrl("http://schedo.polban.studio/api/")
             .client(client)// Emulator Android localhost
             .addConverterFactory(GsonConverterFactory.create())
             .build()
