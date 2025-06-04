@@ -171,7 +171,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         .padding(horizontal = 16.dp, vertical = 50.dp)
                 ) {
                     TabButton(
-                        text = "Project",
+                        text = "Group",
                         isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         modifier = Modifier.weight(1f),
@@ -211,7 +211,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     Spacer(modifier = Modifier.weight(1f))
 
                     Text(
-                        text = if (selectedTab == 0) "All Project" else "Schedule",
+                        text = if (selectedTab == 0) "All Group" else "Schedule",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -777,13 +777,13 @@ fun ProjectCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Group: ${group.name ?: "Unknown"}",
+                text = "Label: ${group.name ?: "Unknown"}",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                 color = Color.Gray
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Lihat Detail",
+                text = "See Details",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                 color = Utama2,
                 modifier = Modifier.clickable { onClick() }
@@ -847,7 +847,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 Spacer(modifier = Modifier.weight(1f))
 
                 Text(
-                    text = "Detail Proyek",
+                    text = "Detail Group",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -864,7 +864,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
             }
 
-            // Detail Proyek Card
+            // Detail Group Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -887,7 +887,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             }) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Proyek",
+                                    contentDescription = "Edit Group",
                                     tint = Utama2
                                 )
                             }
@@ -929,7 +929,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
+                        text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -943,7 +943,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Daftar Tugas",
+                text = "List of Task",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -1054,7 +1054,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         ) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Tambah Tugas")
+            Text("Add Task")
         }
     }
 }

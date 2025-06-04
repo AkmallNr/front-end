@@ -11,6 +11,7 @@ class PreferencesHelper(context: Context) {
         const val KEY_USER_ID = "user_id"
         const val KEY_PROFILE_PICTURE = "profile_picture"
         private const val KEY_SELECTED_PROJECT_IDS = "selected_project_ids"
+        const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
     }
 
     fun saveUserId(userId: Int) {
@@ -43,6 +44,14 @@ class PreferencesHelper(context: Context) {
 
     fun getSelectedProjectIds(): List<String> {
         return sharedPreferences.getString(KEY_SELECTED_PROJECT_IDS, "")?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+    }
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+    }
+
+    fun isOnboardingCompleted(): Boolean {
+        return sharedPreferences.getBoolean(KEY_ONBOARDING_COMPLETED,false)
     }
 
     fun clearSelectedProjectIds() {
