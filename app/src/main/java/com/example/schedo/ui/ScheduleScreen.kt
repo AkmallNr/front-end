@@ -823,11 +823,11 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
+                    .padding(24.dp,32.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { navController.popBackStack() } // Kembali ke halaman sebelumnya
+                    onClick = { navController.navigate("jadwal?groupId={groupId}&projectId={projectId}") } // Kembali ke halaman sebelumnya
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ArrowBack,
@@ -893,7 +893,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
+                                text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Grey1
                             )
@@ -1025,66 +1025,13 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             )
                         }
                     }
-
-                    // Tombol Hapus di pojok kanan atas
-                    IconButton(
-                        onClick = {
-                            println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
-                            coroutineScope.launch {
-                                try {
-                                    val response = apiService.deleteProject(userId, groupId, projectId)
-                                    if (response == Unit) {
-                                        navController.popBackStack()
-                                        Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: HttpException) {
-                                    when (e.code()) {
-                                        403 -> {
-                                            println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
-                                            Toast.makeText(
-                                                context,
-                                                "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                        else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
-                                    }
-                                    e.printStackTrace()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    e.printStackTrace()
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Hapus Proyek",
-                            tint = Color.Red,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = formatDateRange(project.startDate, project.endDate),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
                 }
             }
 
             // Judul Bagian Tugas
             Text(
                 color = Color.Black,
-                text = "List of Task",
+                text = "Task List",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -1189,7 +1136,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 40.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Utama1
             ),

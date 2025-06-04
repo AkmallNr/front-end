@@ -63,7 +63,7 @@ import kotlin.math.min
 @Composable
 fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
     val daysOrder = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-    val dayLabels = listOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
+    val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
     val tasksCount = daysOrder.map { data.tasks[it] ?: 0 }
     val maxTasks = (tasksCount.maxOrNull()?.toFloat() ?: 1f).let { if (it == 0f) 1f else it }
 
@@ -462,13 +462,6 @@ fun HomeScreen(navController: NavHostController) {
                         }
 
                         Row {
-                            IconButton(onClick = { /* Handle notifications */ }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Notifications,
-                                    contentDescription = "Notifications",
-                                    tint = Color.Black
-                                )
-                            }
                             IconButton(onClick = { logout() }) {
                                 Icon(
                                     imageVector = Icons.Filled.ExitToApp,
@@ -484,7 +477,7 @@ fun HomeScreen(navController: NavHostController) {
 
                 item {
                     Text(
-                        "Ringkasan Tugas",
+                        "Task Summary",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -529,7 +522,7 @@ fun HomeScreen(navController: NavHostController) {
                                 Spacer(modifier = Modifier.height(2.dp))
 
                                 Text(
-                                    "Tugas Selesai",
+                                    "Task Completed",
                                     fontSize = 12.sp,
                                     color = Color.Gray,
                                     textAlign = TextAlign.Center
@@ -561,7 +554,7 @@ fun HomeScreen(navController: NavHostController) {
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    "Tugas Tertunda",
+                                    "Pending Tasks",
                                     fontSize = 12.sp,
                                     color = Color.Gray,
                                     textAlign = TextAlign.Center
@@ -583,7 +576,7 @@ fun HomeScreen(navController: NavHostController) {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Group Task",
+                                "Group List",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -661,7 +654,7 @@ fun HomeScreen(navController: NavHostController) {
 
                 item {
                     Text(
-                        "Tugas Selesai di Minggu Ini",
+                        "Tasks Completed in this week",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -919,8 +912,9 @@ fun ProjectCard1(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(16.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

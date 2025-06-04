@@ -248,21 +248,6 @@ fun AddTodoScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = { navController.navigate("home") } // Navigasi ke "home"
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Kembali ke Home",
-                        tint = Utama2
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "Tambah Proyek",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
                 Spacer(modifier = Modifier.weight(1f))
             }
 

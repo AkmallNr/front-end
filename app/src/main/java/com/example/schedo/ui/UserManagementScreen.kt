@@ -261,7 +261,7 @@ fun UserManagementScreen(navController: NavHostController) {
                     // Bagian nama
                     UserInfoRow(
                         icon = Icons.Default.Person,
-                        title = "Nama",
+                        title = "Name",
                         value = user?.name ?: "John Doe"
                     )
 
@@ -279,7 +279,7 @@ fun UserManagementScreen(navController: NavHostController) {
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Edit Grup")
+                        Text("Edit Labels")
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -294,9 +294,8 @@ fun UserManagementScreen(navController: NavHostController) {
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp),
+                        .padding(horizontal = 24.dp, vertical = 100.dp)
+                        .align(Alignment.BottomCenter),
                     shape = RoundedCornerShape(8.dp),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         width = 1.dp,
@@ -339,7 +338,7 @@ fun UserManagementScreen(navController: NavHostController) {
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            text = "Grup Anda",
+                            text = "Your Labels",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 16.dp)
@@ -350,7 +349,7 @@ fun UserManagementScreen(navController: NavHostController) {
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("Tidak ada grup yang ditemukan")
+                                Text("no labels found")
                             }
                         } else {
                             LazyColumn(
@@ -378,7 +377,7 @@ fun UserManagementScreen(navController: NavHostController) {
                                 contentColor = Color.White
                             )
                         ) {
-                            Text("Tutup")
+                            Text("Close")
                         }
                     }
                 }
