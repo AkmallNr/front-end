@@ -75,33 +75,33 @@ fun UserManagementScreen(navController: NavHostController) {
                     val body = MultipartBody.Part.createFormData("profile_picture", file.name, requestFile)
                     val response = RetrofitInstance.api.updateProfilePicture(userId, body)
 
+                    // Debugging respons
                     if (response.isSuccessful) {
+                        Log.d("UserManagementScreen", "Response from updateProfilePicture: Code=${response.code()}")
                         val updatedUser = response.body()?.data
                         if (updatedUser != null) {
                             user = updatedUser
-                            if (updatedUser.profile_picture == null) {
-                                delay(1000)
-                                try {
-                                    val refreshResponse = RetrofitInstance.api.getUsers()
-                                    val refreshedUserList = refreshResponse.body()?.data ?: emptyList()
-                                    val refreshedUser = refreshedUserList.find { it.id == userId }
-                                    if (refreshedUser != null) {
-                                        user = refreshedUser
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("UserManagementScreen", "Gagal memuat ulang data user: ${e.message}", e)
-                                    errorMessage = "Gagal memuat ulang data user"
-                                }
-                            }
                         } else {
-                            errorMessage = "Data user tidak ditemukan dalam respons"
+                            errorMessage = "Data user tidak ditemukan dalam respons dari updateProfilePicture"
+                            // Coba segarkan data dari getUsers sebagai cadangan
+                            val refreshResponse = RetrofitInstance.api.getUsers()
+                            Log.d("UserManagementScreen", "Refresh response from getUsers: Code=${refreshResponse.code()}")
+                            val refreshedUserList = refreshResponse.body()?.data ?: emptyList()
+                            val refreshedUser = refreshedUserList.find { it.id == userId }
+                            if (refreshedUser != null) {
+                                user = refreshedUser
+                            } else {
+                                errorMessage = "Gagal menemukan user setelah penyegaran data. Pastikan userId: $userId valid di server."
+                            }
                         }
                     } else {
+                        val errorBody = response.errorBody()?.string()
+                        Log.e("UserManagementScreen", "Failed updateProfilePicture: Code=${response.code()}, Message=${response.message()}, ErrorBody=$errorBody")
                         errorMessage = "Gagal mengunggah foto profil: ${response.code()} - ${response.message()}"
                     }
                 } catch (e: Exception) {
                     Log.e("UserManagementScreen", "Error unggah: ${e.message}", e)
-                    errorMessage = "Error mengunggah foto profil"
+                    errorMessage = "Error mengunggah foto profil: ${e.message}"
                 } finally {
                     isUploading = false
                 }
@@ -116,6 +116,7 @@ fun UserManagementScreen(navController: NavHostController) {
                 try {
                     // Mengambil data user
                     val userResponse = RetrofitInstance.api.getUsers()
+                    Log.d("UserManagementScreen", "Initial getUsers response: Code=${userResponse.code()}")
                     val userList = userResponse.body()?.data ?: emptyList()
                     user = userList.find { it.id == userId }
 
@@ -124,7 +125,7 @@ fun UserManagementScreen(navController: NavHostController) {
                     userGroups = groupsResponse.data ?: emptyList()
 
                     if (user == null) {
-                        errorMessage = "User tidak ditemukan"
+                        errorMessage = "User tidak ditemukan untuk userId: $userId"
                     }
                 } catch (e: Exception) {
                     errorMessage = "Gagal memuat data user: ${e.message}"

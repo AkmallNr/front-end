@@ -239,36 +239,63 @@ fun AddTodoScreen(
         )
     }
 
+    // Tambahkan Header dengan Tombol Kembali
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showProjectModal) {
-            ModalBottomSheet(
-                onDismissRequest = { showProjectModal = false; onDismiss() },
-                sheetState = rememberModalBottomSheetState(),
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrimColor = Color.Black.copy(alpha = 0.5f)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                BottomSheetProjectModal(
-                    project = project,
-                    projectName = projectName,
-                    onProjectNameChange = { projectName = it },
-                    description = description,
-                    onDescriptionChange = { description = it },
-                    startDate = startDate,
-                    onStartDateChange = { startDate = it },
-                    endDate = endDate,
-                    onEndDateChange = { endDate = it },
-                    groups = groups,
-                    selectedGroup = selectedGroup,
-                    onGroupSelected = { selectedGroup = it },
-                    onAddGroup = { /* Handle add group */ },
-                    onGroupsUpdated = { fetchGroups() },
-                    onSave = { saveProject() },
-                    onDismiss = { showProjectModal = false; onDismiss() },
-                    isLoading = isLoading,
-                    errorMessage = errorMessage,
-                    userId = currentUserId
+                IconButton(
+                    onClick = { navController.navigate("home") } // Navigasi ke "home"
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Kembali ke Home",
+                        tint = Utama2
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Tambah Proyek",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            if (showProjectModal) {
+                ModalBottomSheet(
+                    onDismissRequest = { showProjectModal = false; onDismiss() },
+                    sheetState = rememberModalBottomSheetState(),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrimColor = Color.Black.copy(alpha = 0.5f)
+                ) {
+                    BottomSheetProjectModal(
+                        project = project,
+                        projectName = projectName,
+                        onProjectNameChange = { projectName = it },
+                        description = description,
+                        onDescriptionChange = { description = it },
+                        startDate = startDate,
+                        onStartDateChange = { startDate = it },
+                        endDate = endDate,
+                        onEndDateChange = { endDate = it },
+                        groups = groups,
+                        selectedGroup = selectedGroup,
+                        onGroupSelected = { selectedGroup = it },
+                        onAddGroup = { /* Handle add group */ },
+                        onGroupsUpdated = { fetchGroups() },
+                        onSave = { saveProject() },
+                        onDismiss = { showProjectModal = false; onDismiss() },
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        userId = currentUserId
+                    )
+                }
             }
         }
     }

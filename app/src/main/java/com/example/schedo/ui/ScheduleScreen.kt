@@ -631,27 +631,7 @@ fun ProjectContentWithData(
         }
     } else if (projects.isEmpty() || groups.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Card(
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        onShowAddTodo(true)
-                    },
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFC278))
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Tambah Proyek",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
-            }
+            Text("Tidak ada proyek atau grup", color = Color.Gray)
         }
     } else {
         LazyVerticalGrid(
@@ -677,31 +657,6 @@ fun ProjectContentWithData(
                         group = Group(id = -1, name = "Unknown", icon = null.toString()),
                         onClick = { onProjectClick(project) }
                     )
-                }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            onShowAddTodo(true)
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFC278))
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Tambah Proyek",
-                            tint = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
                 }
             }
         }
@@ -871,7 +826,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { navController.popBackStack() }
+                    onClick = { navController.popBackStack() } // Kembali ke halaman sebelumnya
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ArrowBack,
@@ -901,7 +856,6 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                         tint = Color.Transparent
                     )
                 }
-
             }
 
             Card(
