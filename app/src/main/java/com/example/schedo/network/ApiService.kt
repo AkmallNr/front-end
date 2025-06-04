@@ -11,6 +11,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.*
+import java.util.Date
 
 interface ApiService {
     // Existing endpoints remain unchanged, adding quote-related endpoints
@@ -180,14 +181,22 @@ interface ApiService {
     @PUT("users/{userId}/schedules/{scheduleId}")
     suspend fun updateSchedule(
         @Path("userId") userId: Int,
+        @Path("scheduleId") scheduleId: Int,
         @Body schedule: Schedule
     )
 
     @DELETE("users/{userId}/schedules/{scheduleId}")
     suspend fun deleteSchedule(
         @Path("userId") userId: Int,
-        @Path("id") id: Int
+        @Path("scheduleId") scheduleId: Int
     ): Response<Unit>
+
+    @GET("users/{userId}/range")
+    suspend fun getSchedulesByDateRange(
+        @Path("userId") userId: Int, // Gunakan @Path untuk userId
+        @Query("startDate") startDate: String, // Ubah ke String untuk kontrol format
+        @Query("endDate") endDate: String
+    ): Response<ScheduleResponse> // Gunakan Response untuk menangani status kode
 
     @Multipart
     @POST("upload-file")

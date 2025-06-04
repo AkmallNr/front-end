@@ -28,6 +28,7 @@ data class QuoteResponse(
 )
 
 data class ScheduleResponse(
+    val message: String,
     val data: List<Schedule>
 )
 
