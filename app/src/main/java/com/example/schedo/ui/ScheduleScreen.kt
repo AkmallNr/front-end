@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +14,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,11 +49,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
 import com.example.schedo.model.Attachment
@@ -53,6 +63,8 @@ import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,38 +83,81 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         return
     }
 
+    // State untuk tanggal saat ini dan refresh trigger
+    var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
+    var schedules = remember { mutableStateListOf<Schedule>() }
+    var refreshTrigger by remember { mutableStateOf(0) } // Trigger untuk refresh data
+
+    // Formatter untuk nama hari dan bulan
+    val dayFormat = SimpleDateFormat("EEEE", Locale("id", "ID"))
+    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("id", "ID"))
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+
     var selectedTab by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     val groups = remember { mutableStateListOf<Group>() }
     var selectedGroupId by remember { mutableStateOf(groupId) }
-    val schedules = remember { mutableStateListOf<Schedule>() }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
     var showAddSchedule by remember { mutableStateOf(false) }
     var selectedSchedule by remember { mutableStateOf<Schedule?>(null) }
-    val currentDate = remember { Calendar.getInstance() }
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
+    val currentDay = currentDate.get(Calendar.DAY_OF_MONTH)
+    var selectedDayIndex by remember { mutableStateOf(currentDay - 1) }
 
     val backgroundColor = Background
     val selectedTabColor = Utama2
 
-    fun fetchSchedules() {
-        coroutineScope.launch {
+    // Fungsi untuk mengambil jadwal dari server
+    suspend fun fetchSchedulesFromServer() {
+        try {
             isLoading = true
-            try {
-                val response = apiService.getSchedules(userId, currentWeekStart.timeInMillis).data
-                schedules.clear()
-                schedules.addAll(response)
-                println("Jadwal berhasil diambil: ${schedules.size} jadwal untuk userId: $userId")
-                println("Isi jadwal: $schedules")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isLoading = false
+            val startOfMonth = Calendar.getInstance().apply {
+                time = currentDate.time
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
             }
+            val endOfMonth = Calendar.getInstance().apply {
+                time = currentDate.time
+                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }
+            val isoFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            Log.d("ScheduleScreen", "Fetching schedules for userId: $userId, start: ${isoFormat.format(startOfMonth.time)}, end: ${isoFormat.format(endOfMonth.time)}")
+            val response = apiService.getSchedulesByDateRange(
+                userId,
+                isoFormat.format(startOfMonth.time),
+                isoFormat.format(endOfMonth.time)
+            )
+            if (response.isSuccessful) {
+                val scheduleResponse = response.body()
+                schedules.clear()
+                scheduleResponse?.data?.let { schedules.addAll(it) }
+                Log.d("ScheduleScreen", "Fetched schedules: ${schedules.size} items")
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e("ScheduleScreen", "Failed to fetch schedules: HTTP ${response.code()} ${response.message()} - Error: $errorBody")
+                Toast.makeText(context, "Gagal mengambil jadwal: HTTP ${response.code()} ${response.message()}\n$errorBody", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e("ScheduleScreen", "Failed to fetch schedules: ${e.message}", e)
+            Toast.makeText(context, "Gagal mengambil jadwal: ${e.message}", Toast.LENGTH_LONG).show()
+        } finally {
+            isLoading = false
         }
+    }
+
+    // Fetch schedules saat tanggal berubah atau refreshTrigger berubah
+    LaunchedEffect(currentDate, refreshTrigger) {
+        fetchSchedulesFromServer()
     }
 
     fun fetchGroups() {
@@ -144,24 +199,19 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     }
 
     LaunchedEffect(key1 = Unit) {
-        if (groups.isEmpty()) {
-            fetchGroups()
-        }
-        if (projects.isEmpty()) {
-            fetchProjects()
-        }
-        fetchSchedules()
+        if (groups.isEmpty()) fetchGroups()
+        if (projects.isEmpty()) fetchProjects()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor) // Background diterapkan di sini
+            .background(backgroundColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 56.dp), // Padding dikurangi dari 72dp menjadi 56dp
+                .padding(bottom = 72.dp),
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
@@ -181,7 +231,10 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     TabButton(
                         text = "Schedule",
                         isSelected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
+                        onClick = {
+                            selectedTab = 1
+                            Log.d("ScheduleScreen", "Switched to Schedule tab, selectedTab = $selectedTab")
+                        },
                         modifier = Modifier.weight(1f),
                         selectedColor = selectedTabColor,
                         unSelectedColor = Color.White
@@ -194,36 +247,18 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {
-                        if (selectedProject == null) {
-                            navController.popBackStack()
-                        } else {
-                            selectedProject = null
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Outlined.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = Utama3
-                        )
+                    IconButton(onClick = { if (selectedProject == null) navController.popBackStack() else selectedProject = null }) {
+                        Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Kembali", tint = Utama3)
                     }
-
                     Spacer(modifier = Modifier.weight(1f))
-
                     Text(
                         text = if (selectedTab == 0) "All Project" else "Schedule",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-
                     Spacer(modifier = Modifier.weight(1f))
-
                     IconButton(onClick = {}, enabled = false) {
-                        Icon(
-                            imageVector = Icons.Outlined.ArrowBack,
-                            contentDescription = null,
-                            tint = Color.Transparent
-                        )
+                        Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = null, tint = Color.Transparent)
                     }
                 }
 
@@ -231,9 +266,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     0 -> ProjectContentWithData(
                         navController = navController,
                         onProjectClick = { project -> selectedProject = project },
-                        onEditClick = { project ->
-                            showAddTodo = true
-                        },
+                        onEditClick = { project -> showAddTodo = true },
                         userId = userId,
                         groupId = groupId,
                         groups = groups,
@@ -243,122 +276,146 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.SpaceBetween // Memastikan konten terdistribusi
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Bagian atas - Header & Calendar
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
-                                    Text("<")
+                                IconButton(onClick = { currentDate.add(Calendar.MONTH, -1); selectedDayIndex = 0 }) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = "Bulan Sebelumnya")
                                 }
-                                var expanded by remember { mutableStateOf(false) }
-                                Box {
-                                    Text(
-                                        text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
-                                        modifier = Modifier.clickable { expanded = true }
-                                    )
-                                    DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false }
-                                    ) {
-                                        val months = DateFormatSymbols().months
-                                        months.forEachIndexed { index, month ->
-                                            DropdownMenuItem(
-                                                text = { Text(month) },
-                                                onClick = {
-                                                    currentWeekStart.set(Calendar.MONTH, index)
-                                                    currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
-                                                    currentWeekStart = getWeekStartDate(currentWeekStart)
-                                                    expanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                                IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
-                                    Text(">")
+                                Text(
+                                    text = monthFormat.format(currentDate.time),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(onClick = { currentDate.add(Calendar.MONTH, 1); selectedDayIndex = 0 }) {
+                                    Icon(Icons.Default.ArrowForward, contentDescription = "Bulan Berikutnya")
                                 }
                             }
 
-                            Row(
+                            val monthStart = Calendar.getInstance().apply { time = currentDate.time; set(Calendar.DAY_OF_MONTH, 1) }
+                            val daysInMonth = currentDate.getActualMaximum(Calendar.DAY_OF_MONTH)
+                            val lazyRowState = rememberLazyListState()
+                            LaunchedEffect(currentDate.timeInMillis) {
+                                val newSelectedDay = if (selectedDayIndex >= daysInMonth) 0 else selectedDayIndex
+                                selectedDayIndex = newSelectedDay
+                                if (newSelectedDay >= 2) lazyRowState.animateScrollToItem(maxOf(0, newSelectedDay - 2))
+                            }
+                            LazyRow(
+                                state = lazyRowState,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(vertical = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp)
                             ) {
-                                val dates = getWeekDates(currentWeekStart)
-                                val days = listOf("M", "S", "S", "R", "K", "J", "S")
-                                days.forEachIndexed { index, day ->
+                                items(daysInMonth) { index ->
+                                    val dayCalendar = Calendar.getInstance().apply { time = monthStart.time; add(Calendar.DAY_OF_YEAR, index) }
+                                    val dayOfMonth = dayCalendar.get(Calendar.DAY_OF_MONTH)
+                                    val dayName = when (dayCalendar.get(Calendar.DAY_OF_WEEK)) {
+                                        Calendar.MONDAY -> "Sen"; Calendar.TUESDAY -> "Sel"; Calendar.WEDNESDAY -> "Rab"
+                                        Calendar.THURSDAY -> "Kam"; Calendar.FRIDAY -> "Jum"; Calendar.SATURDAY -> "Sab"
+                                        Calendar.SUNDAY -> "Min"; else -> ""
+                                    }
+                                    val isSelected = selectedDayIndex == index
                                     Card(
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .padding(4.dp)
-                                            .clickable { },
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH))
-                                                Utama2 else Color.White
-                                        )
+                                            .size(70.dp)
+                                            .clickable { selectedDayIndex = index; currentDate.set(Calendar.DAY_OF_MONTH, dayOfMonth) }
+                                            .scale(if (isSelected) 1.1f else 1.0f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFFF914D) else Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 2.dp)
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(day)
-                                            Text(dates[index].toString())
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(text = dayName, fontSize = 12.sp, color = if (isSelected) Color.White else Color.Gray, fontWeight = FontWeight.Medium)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(text = dayOfMonth.toString(), fontSize = 18.sp, color = if (isSelected) Color.White else Color.Black, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Bagian tengah - Jadwal
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "Jadwal Hari Ini",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                            )
-
-                            when {
-                                isLoading -> {
-                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(color = Utama2)
-                                    }
+                            Text(text = "Jadwal Hari Ini", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp))
+                            val selectedDate = Calendar.getInstance().apply { time = monthStart.time; add(Calendar.DAY_OF_YEAR, selectedDayIndex) }
+                            val todaySchedules = schedules.filter { schedule ->
+                                try {
+                                    val scheduleDate = dateFormat.parse(schedule.startTime.split(" ")[0])
+                                    scheduleDate?.let { date ->
+                                        val scheduleCal = Calendar.getInstance().apply { time = date }
+                                        scheduleCal.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH) &&
+                                                scheduleCal.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
+                                                scheduleCal.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
+                                    } ?: false
+                                } catch (e: Exception) {
+                                    Log.e("ScheduleScreen", "Error parsing schedule date: ${e.message}", e)
+                                    false
                                 }
-
-                                schedules.isEmpty() -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("Tidak ada jadwal", color = Color.Gray)
+                            }
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (todaySchedules.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = "Tidak ada jadwal untuk hari ini", color = Color.Gray, fontSize = 16.sp)
+                                        }
                                     }
-                                }
-
-                                else -> {
-                                    LazyColumn(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        items(schedules) { schedule ->
-                                            ScheduleCard(schedule, userId, groupId) { action ->
-                                                when (action) {
-                                                    "edit" -> selectedSchedule = schedule
-                                                    "delete" -> coroutineScope.launch {
-                                                        apiService.deleteSchedule(userId, schedule.id)
-                                                        fetchSchedules()
+                                } else {
+                                    items(todaySchedules) { schedule ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(4.dp, 40.dp)
+                                                        .background(color = Color(0xFFFF914D), shape = RoundedCornerShape(2.dp))
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(text = schedule.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    val timeText = try {
+                                                        val startTimeParts = schedule.startTime.split(" ")
+                                                        val endTimeParts = schedule.endTime.split(" ")
+                                                        val startTime = if (startTimeParts.size > 1) startTimeParts[1] else schedule.startTime
+                                                        val endTime = if (endTimeParts.size > 1) endTimeParts[1] else schedule.endTime
+                                                        "$startTime - $endTime"
+                                                    } catch (e: Exception) {
+                                                        "${schedule.startTime} - ${schedule.endTime}"
                                                     }
+                                                    Text(text = timeText, fontSize = 14.sp, color = Color.Gray)
                                                 }
                                             }
                                         }
@@ -367,46 +424,21 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        // Bagian bawah - Tombol Tambah Jadwal
-                        Box(
+                        // Tombol Tambah Jadwal
+                        Button(
+                            onClick = {
+                                showAddSchedule = true
+                                Log.d("ScheduleScreen", "Show Add Schedule clicked, showAddSchedule = $showAddSchedule")
+                            },
                             modifier = Modifier
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(25.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF914D))
                         ) {
-                            Button(
-                                onClick = { showAddSchedule = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Utama2,
-                                    contentColor = Color.White
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(
-                                    defaultElevation = 4.dp,
-                                    pressedElevation = 8.dp
-                                ),
-                                shape = RoundedCornerShape(16.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Tambah Jadwal",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Tambah Jadwal", fontWeight = FontWeight.Medium)
-                            }
-                        }
-
-                        if (showAddSchedule || selectedSchedule != null) {
-                            AddScheduleScreen(
-                                navController = navController,
-                                userId = userId,
-                                groupId = groupId,
-                                currentWeekStart = currentWeekStart,
-                                onDismiss = { showAddSchedule = false; selectedSchedule = null },
-                                scheduleToEdit = selectedSchedule,
-                                onScheduleAdded = { fetchSchedules() }
-                            )
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah Jadwal", tint = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Tambah Jadwal", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -436,6 +468,22 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     onDismiss = { showAddTodo = false }
                 )
             }
+        }
+
+        if (showAddSchedule || selectedSchedule != null) {
+            AddScheduleScreen(
+                navController = navController,
+                userId = userId,
+                groupId = groupId,
+                currentWeekStart = currentWeekStart,
+                onDismiss = { showAddSchedule = false; selectedSchedule = null },
+                scheduleToEdit = selectedSchedule,
+                onScheduleAdded = {
+                    // Memaksa refresh dengan mengubah refreshTrigger
+                    refreshTrigger++
+                    Log.d("ScheduleScreen", "Schedule added, refreshing data with trigger $refreshTrigger")
+                }
+            )
         }
     }
 }
@@ -521,7 +569,7 @@ fun AddScheduleDialog(
                     if (scheduleToEdit == null) {
                         apiService.addSchedule(userId, schedule)
                     } else {
-                        apiService.updateSchedule(userId, schedule)
+                        apiService.updateSchedule(userId, schedule.id, schedule)
                     }
                     onScheduleAdded()
                     onDismiss()

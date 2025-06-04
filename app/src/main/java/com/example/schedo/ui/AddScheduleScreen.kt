@@ -47,15 +47,35 @@ fun AddScheduleScreen(
     var notes by remember { mutableStateOf(scheduleToEdit?.notes ?: "") }
     var startTime by remember { mutableStateOf(scheduleToEdit?.startTime ?: "") }
     var endTime by remember { mutableStateOf(scheduleToEdit?.endTime ?: "") }
+    var reminderTime by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf(scheduleToEdit?.repeat ?: false) }
 
-    // Mendapatkan hari saat ini
+    // Mendapatkan hari saat ini sebagai angka (1 = Minggu, 2 = Senin, ..., 7 = Sabtu)
     val currentDate = Calendar.getInstance()
+    val day = scheduleToEdit?.day?.toIntOrNull() ?: currentDate.get(Calendar.DAY_OF_WEEK)
+    // Menampilkan nama hari dalam UI
     val dayFormat = SimpleDateFormat("EEEE", Locale("id", "ID"))
-    val day = scheduleToEdit?.day ?: dayFormat.format(currentDate.time)
+    val dayDisplay = dayFormat.format(currentDate.time)
 
     // Formatter untuk DateTimePicker
     val dateTimeFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID"))
+
+    // Efek untuk memperbarui reminderTime 30 menit sebelum startTime
+    LaunchedEffect(startTime) {
+        if (startTime.isNotBlank()) {
+            try {
+                val startDate = dateTimeFormat.parse(startTime)
+                val calendar = Calendar.getInstance().apply {
+                    time = startDate
+                    add(Calendar.MINUTE, -30) // Kurangi 30 menit
+                }
+                reminderTime = dateTimeFormat.format(calendar.time)
+                Log.d("AddScheduleScreen", "Updated reminderTime to: $reminderTime")
+            } catch (e: Exception) {
+                Log.e("AddScheduleScreen", "Failed to parse startTime: $startTime", e)
+            }
+        }
+    }
 
     // Fungsi untuk menampilkan DateTimePicker (DatePicker diikuti TimePicker)
     fun showDateTimePicker(onDateTimeSelected: (String) -> Unit) {
@@ -137,24 +157,36 @@ fun AddScheduleScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
-                    value = day,
+                    value = dayDisplay, // Menampilkan nama hari dalam UI
                     onValueChange = {},
                     label = { Text("Day") },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     readOnly = true
                 )
-                OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    label = { Text("Reminder") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    readOnly = true,
-                    trailingIcon = {
-                        Icon(Icons.Default.Notifications, contentDescription = "Reminder Icon")
-                    }
-                )
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            Log.d("AddScheduleScreen", "Reminder clicked")
+                            showDateTimePicker { reminderTime = it }
+                        },
+                    color = Color.Transparent
+                ) {
+                    OutlinedTextField(
+                        value = reminderTime,
+                        onValueChange = {},
+                        label = { Text("Reminder") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        readOnly = true,
+                        enabled = false,
+                        trailingIcon = {
+                            Icon(Icons.Default.Notifications, contentDescription = "Reminder Icon")
+                        }
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -163,7 +195,6 @@ fun AddScheduleScreen(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Menggunakan Surface untuk menangani klik
                 Surface(
                     modifier = Modifier
                         .weight(1f)
@@ -181,7 +212,7 @@ fun AddScheduleScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         readOnly = true,
-                        enabled = false // Nonaktifkan interaksi langsung pada TextField
+                        enabled = false
                     )
                 }
                 Surface(
@@ -201,7 +232,7 @@ fun AddScheduleScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         readOnly = true,
-                        enabled = false // Nonaktifkan interaksi langsung pada TextField
+                        enabled = false
                     )
                 }
             }
@@ -225,18 +256,18 @@ fun AddScheduleScreen(
                         id = scheduleToEdit?.id ?: 0,
                         name = name,
                         notes = notes,
-                        day = day,
+                        day = day.toString(), // Kirim day sebagai string angka (misalnya, "3" untuk Rabu)
                         startTime = startTime,
                         endTime = endTime,
                         repeat = repeat
                     )
                     coroutineScope.launch {
                         try {
-                            Log.d("AddScheduleScreen", "Saving schedule with day: $day, startTime: $startTime, endTime: $endTime")
+                            Log.d("AddScheduleScreen", "Saving schedule with day: $day, startTime: $startTime, endTime: $endTime, reminder: $reminderTime")
                             if (scheduleToEdit == null) {
                                 apiService.addSchedule(userId, schedule)
                             } else {
-                                apiService.updateSchedule(userId, schedule)
+                                apiService.updateSchedule(userId, schedule.id, schedule)
                             }
                             onScheduleAdded()
                             onDismiss()

@@ -42,11 +42,13 @@ import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.model.User
+import com.example.schedo.network.ApiService
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.WeeklyCompletedTasksData
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.util.PreferencesHelper
+import com.example.schedo.utils.calculateTaskProgress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.provider.Settings
@@ -220,24 +222,22 @@ fun HomeScreen(navController: NavHostController) {
                         }
                     } else {
                         Log.w("HomeScreen", "User not found for userId: $userId")
-                        // Jika user tidak ditemukan, anggap sebagai guest
                         user = null
                     }
                 } else {
                     Log.e("HomeScreen", "Failed to fetch users: ${response.errorBody()?.string()}")
-                    user = null // Anggap sebagai guest jika gagal
+                    user = null
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("HomeScreen", "Error fetching users: ${e.message}")
-                user = null // Anggap sebagai guest jika error
+                user = null
             } finally {
                 isLoading = false
             }
         }
     }
 
-    // Define fetchProjects function
     fun fetchProjects() {
         coroutineScope.launch {
             isProjectsLoading = true
@@ -246,7 +246,6 @@ fun HomeScreen(navController: NavHostController) {
                 allProjects.clear()
                 allProjects.addAll(response.data)
 
-                // Load saved selected projects or default to empty if none saved
                 val savedProjectIds = preferencesHelper.getSelectedProjectIds().mapNotNull { it.toIntOrNull() }
                 val initialSelected = allProjects.filter { project ->
                     project.id?.let { savedProjectIds.contains(it) } ?: false
@@ -264,7 +263,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define fetchGroups function
     fun fetchGroups() {
         coroutineScope.launch {
             isLoading = true
@@ -282,7 +280,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Define fetchTask function
     fun fetchTask() {
         coroutineScope.launch {
             isLoading = true
@@ -331,7 +328,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    // Load data on initialization
     LaunchedEffect(Unit) {
         if (userId != -1) {
             fetchUserData()
@@ -344,7 +340,6 @@ fun HomeScreen(navController: NavHostController) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             if (!alarmManager.canScheduleExactAlarms()) {
-                // Buka pengaturan untuk meminta izin kepada pengguna
                 val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
                 context.startActivity(intent)
             }
@@ -367,355 +362,365 @@ fun HomeScreen(navController: NavHostController) {
 
     Scaffold { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(Background)
-                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 50.dp)
             ) {
                 // Top bar with greeting and icons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                            }
-                        } else if (user?.profile_picture != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(user?.profile_picture)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Profile Picture",
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Gray),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = user?.name?.firstOrNull()?.toString() ?: "?",
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Hello !", fontSize = 16.sp, color = Color.DarkGray)
-                            if (isLoading) {
-                                LinearProgressIndicator(
-                                    modifier = Modifier.width(80.dp),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else if (user != null && userId != -1) {
-                                Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            } else {
-                                Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Log in to access your projects",
-                                    fontSize = 14.sp,
-                                    color = Color.Gray,
-                                    modifier = Modifier.clickable {
-                                        navController.navigate("login") {
-                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Row {
-                        IconButton(onClick = { /* Handle notifications */ }) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications",
-                                tint = Color.Black
-                            )
-                        }
-                        IconButton(onClick = { logout() }) {
-                            Icon(
-                                imageVector = Icons.Filled.ExitToApp,
-                                contentDescription = "Logout",
-                                tint = Color.Black
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    "Ringkasan Tugas",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val completedTasks = allTasks.count { it.status == true }
-                val pendingTasks = allTasks.count { it.status == false || it.status == null }
-
-                // Task summary cards in a more compact row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Completed tasks card - smaller version
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFE6F1FA)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                completedTasks.toString(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                "Tugas Selesai",
-                                fontSize = 12.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-
-                    // Pending tasks card - smaller version
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFE6F1FA)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                pendingTasks.toString(),
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                "Tugas Tertunda",
-                                fontSize = 12.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Project Groups section with + button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Group Task",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Text(
-                            "${selectedProjects.size}",
-                            fontSize = 14.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { showProjectSelectionDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = "Add Project Shortcut",
-                            tint = Utama2
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Project Group cards
-                if (isProjectsLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else if (selectedProjects.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("No projects selected", color = Color.Gray)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(selectedProjects) { project ->
-                            val group = groups.find { it.id == project.groupId } ?: Group(
-                                id = -1,
-                                name = "Unknown",
-                                icon = "fas fa-users"
-                            )
-                            ProjectCard1(
-                                project = project,
-                                group = group,
-                                onClick = {
-                                    val groupId = project.groupId ?: 0
-                                    val projectId = project.id ?: 0
-                                    navController.navigate("project_detail/$userId/$groupId/$projectId")
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Bagian "Tugas Selesai di Minggu Ini" dipindahkan ke sini
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    "Tugas Selesai di Minggu Ini",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-
-                if (isWeeklyTasksLoading) {
-                    Box(
+                item {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        contentAlignment = Alignment.Center
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator()
-                    }
-                } else if (weeklyCompletedTasks == null) {
-                    Text(
-                        "Gagal memuat tugas selesai",
-                        fontSize = 16.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    val calendar = Calendar.getInstance().apply { time = currentWeekStart }
-                                    calendar.add(Calendar.WEEK_OF_YEAR, -1)
-                                    currentWeekStart = calendar.time
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isLoading) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.LightGray),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            } else if (user?.profile_picture != null) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(user?.profile_picture)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Gray),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = user?.name?.firstOrNull()?.toString() ?: "?",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Hello !", fontSize = 16.sp, color = Color.DarkGray)
+                                if (isLoading) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.width(80.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } else if (user != null && userId != -1) {
+                                    Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Log in to access your projects",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.clickable {
+                                            navController.navigate("login") {
+                                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Row {
+                            IconButton(onClick = { /* Handle notifications */ }) {
                                 Icon(
-                                    imageVector = Icons.Filled.ArrowBack,
-                                    contentDescription = "Previous Week",
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Notifications",
                                     tint = Color.Black
                                 )
                             }
-                            Text(
-                                text = "< ${weeklyCompletedTasks!!.date_range} >",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.Gray
-                            )
-                            IconButton(
-                                onClick = {
-                                    val calendar = Calendar.getInstance().apply { time = currentWeekStart }
-                                    calendar.add(Calendar.WEEK_OF_YEAR, 1)
-                                    currentWeekStart = calendar.time
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
+                            IconButton(onClick = { logout() }) {
                                 Icon(
-                                    imageVector = Icons.Filled.ArrowForward,
-                                    contentDescription = "Next Week",
+                                    imageVector = Icons.Filled.ExitToApp,
+                                    contentDescription = "Logout",
                                     tint = Color.Black
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        WeeklyTasksBarChart(data = weeklyCompletedTasks!!)
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                item {
+                    Text(
+                        "Ringkasan Tugas",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+
+                item {
+                    val completedTasks = allTasks.count { it.status == true }
+                    val pendingTasks = allTasks.count { it.status == false || it.status == null }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFE6F1FA)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    completedTasks.toString(),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    "Tugas Selesai",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFE6F1FA)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    pendingTasks.toString(),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    "Tugas Tertunda",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Group Task",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Text(
+                                "${selectedProjects.size}",
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showProjectSelectionDialog = true },
+                            modifier = Modifier
+                                .size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Add Project Shortcut",
+                                tint = Utama2
+                            )
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                // Project Group cards
+                if (isProjectsLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else if (selectedProjects.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No projects selected", color = Color.Gray)
+                        }
+                    }
+                } else {
+                    items(selectedProjects) { project ->
+                        val group = groups.find { it.id == project.groupId } ?: Group(
+                            id = -1,
+                            name = "Unknown",
+                            icon = "fas fa-users"
+                        )
+                        ProjectCard1(
+                            project = project,
+                            group = group,
+                            userId = userId,
+                            groupId = project.groupId ?: 0,
+                            apiService = RetrofitInstance.api,
+                            onClick = {
+                                val groupId = project.groupId ?: 0
+                                val projectId = project.id ?: 0
+                                navController.navigate("project_detail/$userId/$groupId/$projectId")
+                            }
+                        )
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                item {
+                    Text(
+                        "Tugas Selesai di Minggu Ini",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+
+                if (isWeeklyTasksLoading) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else if (weeklyCompletedTasks == null) {
+                    item {
+                        Text(
+                            "Gagal memuat tugas selesai",
+                            fontSize = 16.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                } else {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
+                                        calendar.add(Calendar.WEEK_OF_YEAR, -1)
+                                        currentWeekStart = calendar.time
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowBack,
+                                        contentDescription = "Previous Week",
+                                        tint = Color.Black
+                                    )
+                                }
+                                Text(
+                                    text = "< ${weeklyCompletedTasks!!.date_range} >",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.Gray
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
+                                        calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                                        currentWeekStart = calendar.time
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ArrowForward,
+                                        contentDescription = "Next Week",
+                                        tint = Color.Black
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            WeeklyTasksBarChart(data = weeklyCompletedTasks!!)
+                        }
                     }
                 }
             }
@@ -784,6 +789,7 @@ fun ProjectSelectionDialog(
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
+                // Dynamic height with scrollable LazyColumn
                 val maxHeight = 400.dp
                 val itemHeight = 48.dp
                 val dynamicHeight = minOf(maxHeight, itemHeight * allProjects.size.coerceAtMost(8))
@@ -867,12 +873,15 @@ fun ProjectSelectionDialog(
 fun ProjectCard1(
     project: Project,
     group: Group,
+    userId: Int,
+    groupId: Int,
+    apiService: ApiService,
     onClick: () -> Unit
 ) {
     val projectColor = when ((project.id ?: 0) % 3) {
-        0 -> Color(0xFFFFA0A0) to Color(0xFFD0D0D0)
-        1 -> Color(0xFFA0C4FF) to Color(0xFFD0E0FF)
-        else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0)
+        0 -> Color(0xFFFFA0A0) to Color(0xFFD0D0D0) // Red
+        1 -> Color(0xFFA0C4FF) to Color(0xFFD0E0FF) // Blue
+        else -> Color(0xFFA0FFA0) to Color(0xFFD0FFD0) // Green
     }
 
     // Icon mapping seperti di ScheduleScreen
@@ -905,6 +914,23 @@ fun ProjectCard1(
     )
 
     val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Laptop
+
+    // State untuk menyimpan daftar tugas
+    var tasks by remember { mutableStateOf<List<Task>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Ambil data tugas saat composable dirender
+    LaunchedEffect(project.id) {
+        coroutineScope.launch {
+            try {
+                val response = apiService.getTaskByProject(userId, groupId, project.id ?: 0)
+                tasks = response.data
+            } catch (e: Exception) {
+                // Tangani error (misalnya, log atau tampilkan pesan)
+                tasks = emptyList()
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -957,15 +983,16 @@ fun ProjectCard1(
                     .size(40.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val progress = calculateTaskProgress(tasks) / 100f
                 CircularProgressIndicator(
-                    progress = { 0.02f },
+                    progress = { progress },
                     modifier = Modifier.size(40.dp),
                     color = projectColor.first,
                     strokeWidth = 3.dp,
                     trackColor = Color.LightGray.copy(alpha = 0.3f)
                 )
                 Text(
-                    "2%",
+                    "${(progress * 100).toInt()}%",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -974,10 +1001,3 @@ fun ProjectCard1(
     }
 }
 
-//fun formatDateRange(startDate: String?, endDate: String?): String {
-//    return if (startDate != null && endDate != null) {
-//        "$startDate - $endDate"
-//    } else {
-//        "No Date"
-//    }
-//}
