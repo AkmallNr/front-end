@@ -72,6 +72,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.5.0")
     implementation("androidx.compose.material:material:1.5.0")
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Retrofit + GSON Converter
     implementation("com.squareup.retrofit2:retrofit:2.9.0")

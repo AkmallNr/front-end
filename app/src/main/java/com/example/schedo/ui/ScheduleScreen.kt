@@ -56,6 +56,7 @@ import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: Int) {
@@ -173,7 +174,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                         .padding(horizontal = 16.dp, vertical = 50.dp)
                 ) {
                     TabButton(
-                        text = "Project",
+                        text = "Group",
                         isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         modifier = Modifier.weight(1f),
@@ -213,7 +214,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     Spacer(modifier = Modifier.weight(1f))
 
                     Text(
-                        text = if (selectedTab == 0) "All Project" else "Schedule",
+                        text = if (selectedTab == 0) "All Group" else "Schedule",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -734,13 +735,13 @@ fun ProjectCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Group: ${group.name ?: "Unknown"}",
+                text = "Label: ${group.name ?: "Unknown"}",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                 color = Color.Gray
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Lihat Detail",
+                text = "See Details",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
                 color = Utama2,
                 modifier = Modifier.clickable { onClick() }
@@ -839,12 +840,10 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 Spacer(modifier = Modifier.weight(1f))
 
                 Text(
-                    text = "Detail Proyek",
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    ),
-                    color = Color.Black
+                    color = Color.Black,
+                    text = "Detail Group",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -858,6 +857,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 }
             }
 
+            // Detail Group Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -954,6 +954,51 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             "fas fa-cloud" to Icons.Default.Cloud,
                             "fas fa-person" to Icons.Default.Person
                         )
+                        Row {
+                            IconButton(onClick = {
+                                navController.navigate("add_todo/$userId/$groupId/$projectId")
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Group",
+                                    tint = Utama2
+                                )
+                            }
+                            IconButton(onClick = {
+                                println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
+                                coroutineScope.launch {
+                                    try {
+                                        val response = apiService.deleteProject(userId, groupId, projectId)
+                                        if (response == Unit) {
+                                            navController.popBackStack()
+                                            Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: HttpException) {
+                                        when (e.code()) {
+                                            403 -> {
+                                                println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
+                                                Toast.makeText(
+                                                    context,
+                                                    "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                            else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                        }
+                                        e.printStackTrace()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        e.printStackTrace()
+                                    }
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Hapus Proyek",
+                                    tint = Color.Red
+                                )
+                            }
+                        }
 
                         val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Group
                         val tint = when (group.name?.lowercase() ?: group.icon?.lowercase() ?: "") {
@@ -1023,17 +1068,25 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = formatDateRange(project.startDate, project.endDate),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
 
             // Judul Bagian Tugas
             Text(
-                text = "Daftar Tugas",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                ),
                 color = Color.Black,
+                text = "List of Task",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
@@ -1147,7 +1200,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         ) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Tambah Tugas")
+            Text("Add Task")
         }
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -54,6 +55,7 @@ import kotlinx.coroutines.launch
 import android.provider.Settings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.example.schedo.ui.theme.Utama1
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
@@ -61,91 +63,86 @@ import kotlin.math.min
 @Composable
 fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
     val daysOrder = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-    val dayLabels = listOf("S", "S", "R", "K", "J", "S", "M")
+    val dayLabels = listOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
     val tasksCount = daysOrder.map { data.tasks[it] ?: 0 }
     val maxTasks = (tasksCount.maxOrNull()?.toFloat() ?: 1f).let { if (it == 0f) 1f else it }
 
-    val barColors = listOf(
-        Color(0xFFFF7043), Color(0xFF388E3C), Color(0xFF66BB6A),
-        Color(0xFFFFCA28), Color(0xFFEC407A), Color(0xFF1976D2),
-        Color(0xFF42A5F5)
-    )
-
     val chartHeight = 200.dp
-    val minBarHeight = 10.dp
-
-    val minBarHeightPx = with(LocalDensity.current) { minBarHeight.toPx() }
+    val cornerRadius = 8.dp
+    val barColor = Utama1
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
+        // Chart Container
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(chartHeight)
-                .background(Color.White, RoundedCornerShape(8.dp))
-                .padding(8.dp)
+                .background(Color(0xFFF5F7FA), RoundedCornerShape(12.dp))
+                .padding(16.dp)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val canvasWidth = size.width
                 val canvasHeight = size.height
                 val barWidth = canvasWidth / 10f
-                val spacing = canvasWidth / 14f
-                val maxHeightPx = canvasHeight * 0.8f
+                val spacing = canvasWidth / 7f
+                val maxHeightPx = canvasHeight * 0.7f
+                val bottomPadding = canvasHeight * 0.15f
 
-                val yStep = if (maxTasks <= 1) 1f else (maxTasks / 4f).coerceAtLeast(1f)
-                val yMax = (maxTasks / yStep).toInt().coerceAtLeast(1) * yStep
-
-                for (i in 0..(yMax / yStep).toInt()) {
-                    val yValue = i * yStep
-                    val yPos = canvasHeight - (yValue / yMax * maxHeightPx)
+                // Draw grid lines
+                val gridLines = 5
+                for (i in 0..gridLines) {
+                    val yPos = canvasHeight - bottomPadding - (i * (maxHeightPx / gridLines))
                     drawLine(
-                        color = Color.LightGray.copy(alpha = 0.5f),
+                        color = Color.Gray.copy(alpha = 0.2f),
                         start = Offset(0f, yPos),
                         end = Offset(canvasWidth, yPos),
                         strokeWidth = 1f
                     )
+                }
+
+                // Draw Y-axis labels
+                for (i in 0..gridLines) {
+                    val yValue = (maxTasks * i / gridLines).toInt()
+                    val yPos = canvasHeight - bottomPadding - (i * (maxHeightPx / gridLines))
                     drawContext.canvas.nativeCanvas.drawText(
-                        String.format("%.1f", yValue),
-                        0f,
-                        yPos + 15f,
+                        yValue.toString(),
+                        -20f,
+                        yPos + 5f,
                         android.graphics.Paint().apply {
-                            color = android.graphics.Color.BLACK
-                            textSize = 20f
+                            color = android.graphics.Color.GRAY
+                            textSize = 28f
+                            textAlign = android.graphics.Paint.Align.RIGHT
                         }
                     )
                 }
 
+                // Draw bars
                 tasksCount.forEachIndexed { index, count ->
-                    val barHeightPx = (count / maxTasks * maxHeightPx).coerceAtLeast(minBarHeightPx)
+                    val barHeightPx = if (count > 0) {
+                        (count / maxTasks * maxHeightPx).coerceAtLeast(8f)
+                    } else {
+                        0f
+                    }
                     val left = index * spacing + (spacing - barWidth) / 2
-                    drawRect(
-                        color = barColors[index % barColors.size],
-                        topLeft = Offset(left, canvasHeight - barHeightPx),
-                        size = Size(barWidth, barHeightPx)
-                    )
-                    drawContext.canvas.nativeCanvas.drawText(
-                        count.toString(),
-                        left + barWidth / 2,
-                        canvasHeight - barHeightPx - 10f,
-                        android.graphics.Paint().apply {
-                            color = android.graphics.Color.BLACK
-                            textSize = 20f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
-                    )
+                    val top = canvasHeight - bottomPadding - barHeightPx
+
+                    if (barHeightPx > 0) {
+                        // Draw rounded rectangle bar
+                        val cornerRadiusPx = with(this) { cornerRadius.toPx() }
+                        drawRoundRect(
+                            color = barColor,
+                            topLeft = Offset(left, top),
+                            size = Size(barWidth, barHeightPx),
+                            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                        )
+                    }
                 }
 
+                // Draw day labels
                 dayLabels.forEachIndexed { index, label ->
                     val xPos = index * spacing + spacing / 2
                     drawContext.canvas.nativeCanvas.drawText(
@@ -153,8 +150,8 @@ fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
                         xPos,
                         canvasHeight - 10f,
                         android.graphics.Paint().apply {
-                            color = android.graphics.Color.BLACK
-                            textSize = 20f
+                            color = android.graphics.Color.GRAY
+                            textSize = 32f
                             textAlign = android.graphics.Paint.Align.CENTER
                         }
                     )
@@ -191,13 +188,17 @@ fun HomeScreen(navController: NavHostController) {
 
     var weeklyCompletedTasks by remember { mutableStateOf<WeeklyCompletedTasksData?>(null) }
     var isWeeklyTasksLoading by remember { mutableStateOf(false) }
-    var currentWeekStart by remember { mutableStateOf(Calendar.getInstance().apply {
-        set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.time) }
+    var currentWeekStart by remember {
+        mutableStateOf(
+            Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.time
+        )
+    }
 
     fun fetchUserData() {
         coroutineScope.launch {
@@ -287,7 +288,10 @@ fun HomeScreen(navController: NavHostController) {
                 val response = RetrofitInstance.api.getTaskByUser(userId).data
                 allTasks.clear()
                 allTasks.addAll(response)
-                Log.d("HomeScreen", "Tasks fetched successfully: ${allTasks.size} tasks for userId: $userId")
+                Log.d(
+                    "HomeScreen",
+                    "Tasks fetched successfully: ${allTasks.size} tasks for userId: $userId"
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("HomeScreen", "Error fetching tasks: ${e.message}")
@@ -308,8 +312,15 @@ fun HomeScreen(navController: NavHostController) {
                     weeklyCompletedTasks = response.body()?.data
                     Log.d("HomeScreen", "Weekly completed tasks fetched: ${weeklyCompletedTasks}")
                 } else {
-                    Log.e("HomeScreen", "Failed to fetch weekly completed tasks: ${response.code()}")
-                    Toast.makeText(context, "Gagal memuat tugas selesai mingguan", Toast.LENGTH_SHORT).show()
+                    Log.e(
+                        "HomeScreen",
+                        "Failed to fetch weekly completed tasks: ${response.code()}"
+                    )
+                    Toast.makeText(
+                        context,
+                        "Gagal memuat tugas selesai mingguan",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Error fetching weekly completed tasks: ${e.message}")
@@ -326,6 +337,14 @@ fun HomeScreen(navController: NavHostController) {
         navController.navigate("login") {
             popUpTo(navController.graph.startDestinationId) { inclusive = true }
         }
+    }
+
+    fun saveSelectedProjects(projects: List<Project>) {
+        selectedProjects.clear()
+        selectedProjects.addAll(projects)
+        val projectIds = projects.mapNotNull { it.id }.joinToString(",")
+        preferencesHelper.saveSelectedProjectIds(projectIds)
+        Log.d("HomeScreen", "Saved ${selectedProjects.size} projects as shortcuts")
     }
 
     LaunchedEffect(Unit) {
@@ -350,14 +369,6 @@ fun HomeScreen(navController: NavHostController) {
         if (userId != -1) {
             fetchWeeklyCompletedTasks(currentWeekStart)
         }
-    }
-
-    fun saveSelectedProjects(projects: List<Project>) {
-        selectedProjects.clear()
-        selectedProjects.addAll(projects)
-        val projectIds = projects.mapNotNull { it.id }.joinToString(",")
-        preferencesHelper.saveSelectedProjectIds(projectIds)
-        Log.d("HomeScreen", "Saved ${selectedProjects.size} projects as shortcuts")
     }
 
     Scaffold { paddingValues ->
@@ -427,7 +438,11 @@ fun HomeScreen(navController: NavHostController) {
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 } else if (user != null && userId != -1) {
-                                    Text("${user!!.name}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "${user!!.name}",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 } else {
                                     Text("Guest", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                     Text(
@@ -436,7 +451,9 @@ fun HomeScreen(navController: NavHostController) {
                                         color = Color.Gray,
                                         modifier = Modifier.clickable {
                                             navController.navigate("login") {
-                                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                                popUpTo(navController.graph.startDestinationId) {
+                                                    inclusive = true
+                                                }
                                             }
                                         }
                                     )
@@ -676,48 +693,15 @@ fun HomeScreen(navController: NavHostController) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
-                                        calendar.add(Calendar.WEEK_OF_YEAR, -1)
-                                        currentWeekStart = calendar.time
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.ArrowBack,
-                                        contentDescription = "Previous Week",
-                                        tint = Color.Black
-                                    )
-                                }
-                                Text(
-                                    text = "< ${weeklyCompletedTasks!!.date_range} >",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.Gray
-                                )
-                                IconButton(
-                                    onClick = {
-                                        val calendar = Calendar.getInstance().apply { time = currentWeekStart }
-                                        calendar.add(Calendar.WEEK_OF_YEAR, 1)
-                                        currentWeekStart = calendar.time
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.ArrowForward,
-                                        contentDescription = "Next Week",
-                                        tint = Color.Black
-                                    )
-                                }
-                            }
+                            Text(
+                                text = " ${weeklyCompletedTasks!!.date_range} ",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.Gray
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
                             WeeklyTasksBarChart(data = weeklyCompletedTasks!!)
                         }
@@ -725,7 +709,7 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
-            // Project Selection Dialog
+            // Project Selection Dialog (dipindahkan ke luar LazyColumn)
             if (showProjectSelectionDialog) {
                 ProjectSelectionDialog(
                     allProjects = allProjects,
@@ -977,7 +961,6 @@ fun ProjectCard1(
             }
 
             // Calculate the progress properly (or use project.progress if available)
-//            val progress = project.progress?.toFloat()?.div(100f) ?: 0.01f
             Box(
                 modifier = Modifier
                     .size(40.dp),

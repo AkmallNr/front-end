@@ -33,15 +33,26 @@ fun AppNavHost(
     navController: NavHostController,
     groupId: Int = -1,
     projectId: Int = -1,
-    startDestination: String = "login"
+    startDestination: String = "onboarding"
 ) {
     val context = LocalContext.current
     val preferencesHelper = remember { PreferencesHelper(context) }
+    val onboardingCompleted = preferencesHelper.isOnboardingCompleted()
+    val userId = preferencesHelper.getUserId()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val actualStartDestination = remember {
+        when {
+            !onboardingCompleted -> "onboarding"
+            userId == -1 -> "login"
+            else -> BottomNavItem.TODO.route
+        }
+    }
+
     // List of routes where bottom navigation should be hidden
     val noBottomNavRoutes = listOf(
+        "onboarding",
         "login",
         "register",
         "OnLoad",
@@ -79,9 +90,20 @@ fun AppNavHost(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = startDestination,
+                startDestination = actualStartDestination,
                 modifier = Modifier.fillMaxSize()
             ) {
+                composable("onboarding") {
+                    OnBoardingScreen(
+                        onFinished = {
+                            preferencesHelper.setOnboardingCompleted(true)
+                            navController.navigate("login") {
+                                popUpTo("onboarding") {inclusive = true}
+                            }
+                        }
+                    )
+                }
+
                 composable("login") {
                     LoginScreen(navController)
                 }
