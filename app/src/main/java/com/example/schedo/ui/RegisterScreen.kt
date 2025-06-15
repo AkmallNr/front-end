@@ -2,6 +2,7 @@ package com.example.schedo.ui
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -35,6 +36,7 @@ fun RegisterScreen(navController: NavHostController) {
     var confirmPassword by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    val backgroundColor = Color.White
 
     val coroutineScope = rememberCoroutineScope()
     val emailPattern = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+".toRegex()
@@ -42,6 +44,7 @@ fun RegisterScreen(navController: NavHostController) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundColor)
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -51,7 +54,7 @@ fun RegisterScreen(navController: NavHostController) {
         ) {
             Text(
                 text = "Sign Up",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 

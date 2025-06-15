@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.schedo"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -29,11 +29,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "1.8"
     }
     buildFeatures {
         compose = true
@@ -58,6 +58,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.media3.common.ktx)
+    implementation(libs.androidx.compose.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -70,6 +72,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.5.0")
     implementation("androidx.compose.material:material:1.5.0")
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Retrofit + GSON Converter
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
@@ -121,4 +124,20 @@ dependencies {
     implementation ("androidx.compose.foundation:foundation:1.5.4")
     implementation ("androidx.activity:activity-compose:1.8.2" )// Untuk NavHostController
     implementation ("androidx.navigation:navigation-compose:2.7.6")
+    coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring ("com.android.tools:desugar_jdk_libs:1.1.5")
+
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    // OkHttp for multipart file uploads
+    implementation ("com.squareup.okhttp3:okhttp:4.9.3")
+
+    // Optional: Logging interceptor for debugging API calls
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.9.3")
+    implementation ("com.squareup.okhttp3:okhttp:4.12.0") // Pastikan versi terbaru
+    implementation ("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation ("androidx.compose.material3:material3:1.2.0")
 }

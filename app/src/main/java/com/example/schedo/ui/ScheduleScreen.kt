@@ -1,32 +1,49 @@
 package com.example.schedo.ui
 
-import android.widget.Space
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.SnackbarDefaults.backgroundColor
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.scale
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.schedo.model.Group
 import com.example.schedo.model.Project
 import com.example.schedo.model.Task
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
+import com.example.schedo.ui.formatDateRange
+import com.example.schedo.ui.theme.Background
+import com.example.schedo.ui.theme.Grey2
+import com.example.schedo.ui.theme.Utama2
+import com.example.schedo.ui.theme.Utama3
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import com.example.schedo.util.PreferencesHelper
@@ -35,21 +52,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.focus.focusModifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
-import com.example.schedo.ui.theme.Background
-import com.example.schedo.ui.theme.Utama2
-import com.example.schedo.ui.theme.Utama3
+import com.example.schedo.model.Attachment
 import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +74,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val context = LocalContext.current
     val preferencesHelper = PreferencesHelper(context)
     val userId = preferencesHelper.getUserId()
+
+    var showAddTodo by remember { mutableStateOf(false) }
 
     if (userId == -1) {
         LaunchedEffect(Unit) {
@@ -66,38 +85,81 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         return
     }
 
+    // State untuk tanggal saat ini dan refresh trigger
+    var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
+    var schedules = remember { mutableStateListOf<Schedule>() }
+    var refreshTrigger by remember { mutableStateOf(0) } // Trigger untuk refresh data
+
+    // Formatter untuk nama hari dan bulan
+    val dayFormat = SimpleDateFormat("EEEE", Locale("id", "ID"))
+    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("id", "ID"))
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+
     var selectedTab by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     val groups = remember { mutableStateListOf<Group>() }
     var selectedGroupId by remember { mutableStateOf(groupId) }
-    val schedules = remember { mutableStateListOf<Schedule>() }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
     var showAddSchedule by remember { mutableStateOf(false) }
     var selectedSchedule by remember { mutableStateOf<Schedule?>(null) }
-    val currentDate = remember { Calendar.getInstance() }
     var currentWeekStart by remember { mutableStateOf(getWeekStartDate(currentDate)) }
+    val currentDay = currentDate.get(Calendar.DAY_OF_MONTH)
+    var selectedDayIndex by remember { mutableStateOf(currentDay - 1) }
 
     val backgroundColor = Background
-    val selectedTabColor = Color(0xFFFFC278)
+    val selectedTabColor = Utama2
 
-    fun fetchSchedules() {
-        coroutineScope.launch {
+    // Fungsi untuk mengambil jadwal dari server
+    suspend fun fetchSchedulesFromServer() {
+        try {
             isLoading = true
-            try {
-                val response = apiService.getSchedules(userId, currentWeekStart.timeInMillis).data
-                schedules.clear()
-                schedules.addAll(response)
-                println("Schedule fetched successfully: ${schedules.size} groups for userId: $userId")
-                println("isi Schedule: ${schedules}")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isLoading = false
+            val startOfMonth = Calendar.getInstance().apply {
+                time = currentDate.time
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
             }
+            val endOfMonth = Calendar.getInstance().apply {
+                time = currentDate.time
+                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }
+            val isoFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            Log.d("ScheduleScreen", "Fetching schedules for userId: $userId, start: ${isoFormat.format(startOfMonth.time)}, end: ${isoFormat.format(endOfMonth.time)}")
+            val response = apiService.getSchedulesByDateRange(
+                userId,
+                isoFormat.format(startOfMonth.time),
+                isoFormat.format(endOfMonth.time)
+            )
+            if (response.isSuccessful) {
+                val scheduleResponse = response.body()
+                schedules.clear()
+                scheduleResponse?.data?.let { schedules.addAll(it) }
+                Log.d("ScheduleScreen", "Fetched schedules: ${schedules.size} items")
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e("ScheduleScreen", "Failed to fetch schedules: HTTP ${response.code()} ${response.message()} - Error: $errorBody")
+                Toast.makeText(context, "Gagal mengambil jadwal: HTTP ${response.code()} ${response.message()}\n$errorBody", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e("ScheduleScreen", "Failed to fetch schedules: ${e.message}", e)
+            Toast.makeText(context, "Gagal mengambil jadwal: ${e.message}", Toast.LENGTH_LONG).show()
+        } finally {
+            isLoading = false
         }
+    }
+
+    // Fetch schedules saat tanggal berubah atau refreshTrigger berubah
+    LaunchedEffect(currentDate, refreshTrigger) {
+        fetchSchedulesFromServer()
     }
 
     fun fetchGroups() {
@@ -107,9 +169,9 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 val response = apiService.getGroups(userId).data
                 groups.clear()
                 groups.addAll(response)
-                println("Groups fetched successfully: ${groups.size} groups for userId: $userId")
+                println("Grup berhasil diambil: ${groups.size} grup untuk userId: $userId")
             } catch (e: Exception) {
-                println("Failed to fetch groups for userId: $userId - Error: ${e.message}")
+                println("Gagal mengambil grup untuk userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -122,50 +184,46 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
             isLoading = true
             try {
                 val response = apiService.getProjectsByUser(userId).data
-                println("Raw API response for userId: $userId - $response") // Log respons mentah
+                println("Respon API mentah untuk userId: $userId - $response")
                 projects.clear()
                 projects.addAll(response)
-                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
-                // Log detail setiap proyek
+                println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
                 projects.forEach { project ->
-                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
+                    println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
                 }
             } catch (e: Exception) {
-                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
+                println("Gagal mengambil proyek untuk userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
             }
         }
     }
+
     LaunchedEffect(key1 = Unit) {
-        if (groups.isEmpty()) {
-            fetchGroups() // Ambil grup saat pertama kali dimuat
-        }
-        if (projects.isEmpty()) {
-            fetchProjects() // Ambil proyek saat pertama kali dimuat
-        }
-        fetchSchedules()
+        if (groups.isEmpty()) fetchGroups()
+        if (projects.isEmpty()) fetchProjects()
     }
 
-    // TopAppBar Custom
-    Scaffold(
-        containerColor = backgroundColor
-    ) { paddingValues ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(bottom = 56.dp), // Padding dikurangi dari 72dp menjadi 56dp
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 50.dp)
                 ) {
                     TabButton(
-                        text = "Project",
+                        text = "Group",
                         isSelected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         modifier = Modifier.weight(1f),
@@ -175,7 +233,10 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     TabButton(
                         text = "Schedule",
                         isSelected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
+                        onClick = {
+                            selectedTab = 1
+                            Log.d("ScheduleScreen", "Switched to Schedule tab, selectedTab = $selectedTab")
+                        },
                         modifier = Modifier.weight(1f),
                         selectedColor = selectedTabColor,
                         unSelectedColor = Color.White
@@ -183,154 +244,187 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
-                ){
-                    IconButton(onClick = {
-                        if (selectedProject == null) {
-                            navController.popBackStack()
-                        } else {
-                            selectedProject = null
-                        }
-                    }) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Utama3)
+                ) {
+                    IconButton(onClick = { if (selectedProject == null) navController.popBackStack() else selectedProject = null }) {
+                        Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Kembali", tint = Utama3)
                     }
-
                     Spacer(modifier = Modifier.weight(1f))
-
                     Text(
-                        text = if (selectedTab == 0) "All Project" else "Schedule",
+                        text = if (selectedTab == 0) "All Group" else "Schedule",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-//                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                        fontWeight = FontWeight.Bold
                     )
-
                     Spacer(modifier = Modifier.weight(1f))
-
                     IconButton(onClick = {}, enabled = false) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = null, tint = Color.Transparent)
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowBack,
+                            contentDescription = null,
+                            tint = Color.Transparent
+                        )
                     }
-
                 }
-
-//                Spacer(modifier = Modifier.weight(1f))
-//
-//                Text(
-//                    text = if (selectedTab == 0) "All Project" else "Schedule",
-//                    style = MaterialTheme.typography.headlineMedium,
-//                    fontWeight = FontWeight.Bold,
-//                    modifier = Modifier.align(Alignment.CenterHorizontally)
-//                )
-//
-//                Spacer(modifier = Modifier.weight(1f))
-
 
                 when (selectedTab) {
                     0 -> ProjectContentWithData(
+                        navController = navController,
                         onProjectClick = { project -> selectedProject = project },
                         onEditClick = { project ->
-                            println("Edit clicked for poject ${project.id} group ${project.groupId}")
-                            navController.navigate("add_todo/$userId/${project.groupId}/${project.id}")
+                            showAddTodo = true
                         },
                         userId = userId,
-                        groupId = groupId
+                        groupId = groupId,
+                        groups = groups,
+                        onShowAddTodo = { showAddTodo = it }
                     )
                     1 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, -7) }) {
-                                Text("<")
-                            }
-                            var expanded by remember { mutableStateOf(false) }
-                            Box {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = { currentDate.add(Calendar.MONTH, -1); selectedDayIndex = 0 }) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = "Bulan Sebelumnya")
+                                }
                                 Text(
-                                    text = SimpleDateFormat("MMMM yyyy").format(currentWeekStart.time),
-                                    modifier = Modifier.clickable { expanded = true }
+                                    text = monthFormat.format(currentDate.time),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    val months = DateFormatSymbols().months
-                                    months.forEachIndexed { index, month ->
-                                        DropdownMenuItem(
-                                            text = { Text(month) },
-                                            onClick = {
-                                                currentWeekStart.set(Calendar.MONTH, index)
-                                                currentWeekStart.set(Calendar.DAY_OF_MONTH, 1)
-                                                currentWeekStart = getWeekStartDate(currentWeekStart)
-                                                expanded = false
-                                            }
-                                        )
+                                IconButton(onClick = { currentDate.add(Calendar.MONTH, 1); selectedDayIndex = 0 }) {
+                                    Icon(Icons.Default.ArrowForward, contentDescription = "Bulan Berikutnya")
+                                }
+                            }
+
+                            val monthStart = Calendar.getInstance().apply { time = currentDate.time; set(Calendar.DAY_OF_MONTH, 1) }
+                            val daysInMonth = currentDate.getActualMaximum(Calendar.DAY_OF_MONTH)
+                            val lazyRowState = rememberLazyListState()
+                            LaunchedEffect(currentDate.timeInMillis) {
+                                val newSelectedDay = if (selectedDayIndex >= daysInMonth) 0 else selectedDayIndex
+                                selectedDayIndex = newSelectedDay
+                                if (newSelectedDay >= 2) lazyRowState.animateScrollToItem(maxOf(0, newSelectedDay - 2))
+                            }
+                            LazyRow(
+                                state = lazyRowState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp)
+                            ) {
+                                items(daysInMonth) { index ->
+                                    val dayCalendar = Calendar.getInstance().apply { time = monthStart.time; add(Calendar.DAY_OF_YEAR, index) }
+                                    val dayOfMonth = dayCalendar.get(Calendar.DAY_OF_MONTH)
+                                    val dayName = when (dayCalendar.get(Calendar.DAY_OF_WEEK)) {
+                                        Calendar.MONDAY -> "Sen"; Calendar.TUESDAY -> "Sel"; Calendar.WEDNESDAY -> "Rab"
+                                        Calendar.THURSDAY -> "Kam"; Calendar.FRIDAY -> "Jum"; Calendar.SATURDAY -> "Sab"
+                                        Calendar.SUNDAY -> "Min"; else -> ""
+                                    }
+                                    val isSelected = selectedDayIndex == index
+                                    Card(
+                                        modifier = Modifier
+                                            .size(70.dp)
+                                            .clickable { selectedDayIndex = index; currentDate.set(Calendar.DAY_OF_MONTH, dayOfMonth) }
+                                            .scale(if (isSelected) 1.1f else 1.0f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFFF914D) else Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 2.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(text = dayName, fontSize = 12.sp, color = if (isSelected) Color.White else Color.Gray, fontWeight = FontWeight.Medium)
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(text = dayOfMonth.toString(), fontSize = 18.sp, color = if (isSelected) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
-                            IconButton(onClick = { currentWeekStart.add(Calendar.DAY_OF_MONTH, 7) }) {
-                                Text(">")
-                            }
-                        }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val dates = getWeekDates(currentWeekStart)
-                            val days = listOf("S", "M", "T", "W", "T", "F", "S")
-                            days.forEachIndexed { index, day ->
-                                Card(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(4.dp)
-                                        .clickable { },
-                                    colors = CardDefaults.cardColors(containerColor = if (dates[index] == currentDate.get(Calendar.DAY_OF_MONTH)) Color(0xFFFFC278) else Color.White)
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(day)
-                                        Text(dates[index].toString())
-                                    }
+                            Text(text = "Jadwal Hari Ini", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp))
+                            val selectedDate = Calendar.getInstance().apply { time = monthStart.time; add(Calendar.DAY_OF_YEAR, selectedDayIndex) }
+                            val todaySchedules = schedules.filter { schedule ->
+                                try {
+                                    val scheduleDate = dateFormat.parse(schedule.startTime.split(" ")[0])
+                                    scheduleDate?.let { date ->
+                                        val scheduleCal = Calendar.getInstance().apply { time = date }
+                                        scheduleCal.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH) &&
+                                                scheduleCal.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
+                                                scheduleCal.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
+                                    } ?: false
+                                } catch (e: Exception) {
+                                    Log.e("ScheduleScreen", "Error parsing schedule date: ${e.message}", e)
+                                    false
                                 }
                             }
-                        }
-
-                        Text(
-                            text = "Jadwal Hari Ini",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(16.dp)
-                        )
-
-                        if (isLoading) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        } else if (schedules.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("Tidak ada jadwal", color = Color.Gray)
-                            }
-                        } else {
                             LazyColumn(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .padding(16.dp),
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(schedules) { schedule ->
-                                    ScheduleCard(schedule, userId, groupId) { action ->
-                                        when (action) {
-                                            "edit" -> selectedSchedule = schedule
-                                            "delete" -> coroutineScope.launch {
-                                                apiService.deleteSchedule(userId, schedule.id)
-                                                fetchSchedules()
+                                if (todaySchedules.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(text = "Tidak ada jadwal untuk hari ini", color = Color.Gray, fontSize = 16.sp)
+                                        }
+                                    }
+                                } else {
+                                    items(todaySchedules) { schedule ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(4.dp, 40.dp)
+                                                        .background(color = Color(0xFFFF914D), shape = RoundedCornerShape(2.dp))
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(text = schedule.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    val timeText = try {
+                                                        val startTimeParts = schedule.startTime.split(" ")
+                                                        val endTimeParts = schedule.endTime.split(" ")
+                                                        val startTime = if (startTimeParts.size > 1) startTimeParts[1] else schedule.startTime
+                                                        val endTime = if (endTimeParts.size > 1) endTimeParts[1] else schedule.endTime
+                                                        "$startTime - $endTime"
+                                                    } catch (e: Exception) {
+                                                        "${schedule.startTime} - ${schedule.endTime}"
+                                                    }
+                                                    Text(text = timeText, fontSize = 14.sp, color = Color.Gray)
+                                                }
                                             }
                                         }
                                     }
@@ -338,27 +432,21 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
+                        // Tombol Tambah Jadwal
                         Button(
-                            onClick = { showAddSchedule = true },
+                            onClick = {
+                                showAddSchedule = true
+                                Log.d("ScheduleScreen", "Show Add Schedule clicked, showAddSchedule = $showAddSchedule")
+                            },
                             modifier = Modifier
-                                .align(Alignment.End)
-                                .padding(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278))
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(25.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF914D))
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Tambah Jadwal")
-                            Text("Tambah Jadwal")
-                        }
-
-                        if (showAddSchedule || selectedSchedule != null) {
-                            AddScheduleDialog(
-                                navController,
-                                userId,
-                                groupId,
-                                currentWeekStart,
-                                onDismiss = { showAddSchedule = false; selectedSchedule = null },
-                                scheduleToEdit = selectedSchedule,
-                                onScheduleAdded = { fetchSchedules() }
-                            )
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah Jadwal", tint = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Tambah Jadwal", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -367,12 +455,48 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     navController,
                     selectedProject!!,
                     userId,
-                    groupId = selectedProject!!.groupId)
+                    groupId = selectedProject!!.groupId
+                )
             }
+        }
+
+        if (showAddTodo) {
+            ModalBottomSheet(
+                onDismissRequest = { showAddTodo = false },
+                sheetState = rememberModalBottomSheetState(),
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrimColor = Color.Black.copy(alpha = 0.5f)
+            ) {
+                AddTodoScreen(
+                    navController = navController,
+                    projectId = projectId,
+                    groupId = groupId,
+                    userId = userId,
+                    onDismiss = { showAddTodo = false }
+                )
+            }
+        }
+
+        if (showAddSchedule || selectedSchedule != null) {
+            AddScheduleScreen(
+                navController = navController,
+                userId = userId,
+                groupId = groupId,
+                currentWeekStart = currentWeekStart,
+                onDismiss = { showAddSchedule = false; selectedSchedule = null },
+                scheduleToEdit = selectedSchedule,
+                onScheduleAdded = {
+                    // Memaksa refresh dengan mengubah refreshTrigger
+                    refreshTrigger++
+                    Log.d("ScheduleScreen", "Schedule added, refreshing data with trigger $refreshTrigger")
+                }
+            )
         }
     }
 }
 
+// Fungsi lainnya (ScheduleCard, AddScheduleDialog, getWeekStartDate, getWeekDates, TabButton, dll.) tetap sama seperti sebelumnya
 @Composable
 fun ScheduleCard(schedule: Schedule, userId: Int, groupId: Int, onAction: (String) -> Unit) {
     Card(
@@ -453,7 +577,7 @@ fun AddScheduleDialog(
                     if (scheduleToEdit == null) {
                         apiService.addSchedule(userId, schedule)
                     } else {
-                        apiService.updateSchedule(userId, schedule)
+                        apiService.updateSchedule(userId, schedule.id, schedule)
                     }
                     onScheduleAdded()
                     onDismiss()
@@ -517,10 +641,13 @@ fun TabButton(
 
 @Composable
 fun ProjectContentWithData(
+    navController: NavHostController,
     onProjectClick: (Project) -> Unit,
-    onEditClick: (Project) -> Unit, // Tambahkan callback edit
+    onEditClick: (Project) -> Unit,
     userId: Int,
-    groupId: Int
+    groupId: Int,
+    groups: List<Group>,
+    onShowAddTodo: (Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
@@ -532,16 +659,15 @@ fun ProjectContentWithData(
             isLoading = true
             try {
                 val response = apiService.getProjectsByUser(userId).data
-                println("Raw API response for userId: $userId - $response") // Log respons mentah
+                println("Respon API mentah untuk userId: $userId - $response")
                 projects.clear()
                 projects.addAll(response)
-                println("Projects fetched successfully: ${projects.size} projects for userId: $userId")
-                // Log detail setiap proyek
+                println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
                 projects.forEach { project ->
-                    println("Project: id=${project.id}, name=${project.name}, groupId=${project.groupId}")
+                    println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
                 }
             } catch (e: Exception) {
-                println("Failed to fetch projects for userId: $userId - Error: ${e.message}")
+                println("Gagal mengambil proyek untuk userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isLoading = false
@@ -557,74 +683,122 @@ fun ProjectContentWithData(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Utama2)
         }
-    } else if (projects.isEmpty()) {
+    } else if (projects.isEmpty() || groups.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Tidak ada proyek",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.Gray
-            )
+            Text("Tidak ada proyek atau grup", color = Color.Gray)
         }
     } else {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            items(projects.size) { index ->
+                val project = projects[index]
+                val group = groups.find { it.id == project.groupId }
+                if (group != null) {
+                    ProjectCard(
+                        project = project,
+                        group = group,
+                        onClick = { onProjectClick(project) }
+                    )
+                } else {
+                    ProjectCard(
+                        project = project,
+                        group = Group(id = -1, name = "Unknown", icon = null.toString()),
+                        onClick = { onProjectClick(project) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProjectCard(
+    project: Project,
+    group: Group,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            items(projects) { project ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            // Log projectId dan groupId saat proyek diklik
-                            println("Project clicked - projectId: ${project.id}, groupId: ${project.groupId}, userId: $userId")
-                            onProjectClick(project) // Mengirim seluruh objek Project ke callback
-                        },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = project.name ?: "Tanpa Nama",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Start: ${project.startDate ?: "Tanpa Tanggal"}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray
-                            )
-                            Text(
-                                text = "End: ${project.endDate ?: "Tanpa Tanggal"}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray
-                            )
-                        }
+            val iconMapping = mapOf(
+                "fas fa-users" to Icons.Default.Group,
+                "fas fa-folder" to Icons.Default.Folder,
+                "fas fa-star" to Icons.Default.Star,
+                "fas fa-home" to Icons.Default.Home,
+                "fas fa-tasks" to Icons.Default.List,
+                "fas fa-calendar" to Icons.Default.CalendarMonth,
+                "fas fa-book" to Icons.Default.Book,
+                "fas fa-bell" to Icons.Default.Notifications,
+                "fas fa-heart" to Icons.Default.Favorite,
+                "fas fa-check" to Icons.Default.CheckCircle,
+                "fas fa-envelope" to Icons.Default.Email,
+                "fas fa-image" to Icons.Default.Image,
+                "fas fa-file" to Icons.Default.Description,
+                "fas fa-clock" to Icons.Default.AccessTime,
+                "fas fa-cog" to Icons.Default.Settings,
+                "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+                "fas fa-tag" to Icons.Default.LocalOffer,
+                "fas fa-link" to Icons.Default.Link,
+                "fas fa-map" to Icons.Default.Place,
+                "fas fa-music" to Icons.Default.MusicNote,
+                "fas fa-phone" to Icons.Default.Call,
+                "fas fa-camera" to Icons.Default.PhotoCamera,
+                "fas fa-search" to Icons.Default.Search,
+                "fas fa-cloud" to Icons.Default.Cloud,
+                "fas fa-person" to Icons.Default.Person
+            )
 
-                        IconButton(onClick = { onEditClick(project) }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Project",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+            val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Edit
+            val tint = when (group.name?.lowercase() ?: group.icon?.lowercase() ?: "") {
+                "office project", "laptop" -> Color(0xFFFF6F61)
+                "personal project", "clipboard" -> Color(0xFF4FC3F7)
+                "daily study", "chart" -> Color(0xFF81C784)
+                else -> Utama2
             }
+
+            Icon(
+                imageVector = selectedIcon,
+                contentDescription = "${group.name} Icon",
+                tint = tint,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = project.name ?: "Unknown Project",
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+                fontWeight = FontWeight.Medium,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Label: ${group.name ?: "Unknown"}",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "See Details",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                color = Utama2,
+                modifier = Modifier.clickable { onClick() }
+            )
         }
     }
 }
@@ -638,25 +812,54 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
     var isLoading by remember { mutableStateOf(false) }
     val backgroundColor = Background
     val apiService = RetrofitInstance.api
+    val groups = remember { mutableStateListOf<Group>() }
 
-    // Log untuk memverifikasi parameter saat komponen dimuat
-    LaunchedEffect(Unit) {
-        println("ProjectDetailScreen loaded with userId: $userId, groupId: $groupId, projectId: $projectId")
-    }
+    // Palet warna yang disesuaikan dengan tema kedua
+    val Background = Color(0xFFFFFBDA) // Latar belakang kuning muda
+    val Utama1 = Color(0xFFFFC278) // Oranye untuk tombol
+    val Utama2 = Color(0xFFFFBB70) // Oranye cerah untuk elemen aktif
+    val Utama3 = Color(0xFFED9455) // Oranye gelap untuk titik dan tanggal
+    val Grey1 = Color(0xFFd1d1d1) // Abu-abu untuk teks sekunder
+    val Grey2 = Color(0xFFEDF0F2) // Abu-abu sangat terang
 
-    LaunchedEffect(key1 = projectId) {
-        isLoading = true
-        try {
-            val response = apiService.getTask(userId, groupId, projectId).data
-            tasks.clear()
-            tasks.addAll(response)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
-        } finally {
-            isLoading = false
+    // Fungsi untuk mengambil tugas
+    fun fetchTasks() {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val response = apiService.getTask(userId, groupId, projectId).data
+                tasks.clear()
+                tasks.addAll(response)
+                println("Tugas berhasil diambil: ${tasks.size} tugas untuk projectId: $projectId")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isLoading = false
+            }
         }
     }
+
+    // Ambil data grup untuk mendapatkan ikon grup
+    LaunchedEffect(Unit) {
+        try {
+            val response = apiService.getGroups(userId).data
+            groups.clear()
+            groups.addAll(response)
+            println("Grup berhasil diambil: ${groups.size} grup untuk userId: $userId")
+        } catch (e: Exception) {
+            println("Gagal mengambil grup untuk userId: $userId - Error: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // Ambil tugas saat layar dimuat
+    LaunchedEffect(key1 = projectId) {
+        fetchTasks()
+    }
+
+    // Temukan grup berdasarkan groupId
+    val group = groups.find { it.id == groupId } ?: Group(id = -1, name = "Unknown", icon = "fas fa-users")
 
     Box(
         modifier = Modifier
@@ -669,23 +872,29 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 .padding(16.dp)
                 .padding(bottom = 72.dp)
         ) {
-            // Custom Top Bar
+            // Header dengan tombol kembali dan judul
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp,32.dp),
                 verticalAlignment = Alignment.CenterVertically
-            ){
-                IconButton(onClick = { navController.popBackStack() }) {
+            ) {
+                IconButton(
+                    onClick = { navController.navigate("jadwal?groupId={groupId}&projectId={projectId}") } // Kembali ke halaman sebelumnya
+                ) {
                     Icon(
                         imageVector = Icons.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Utama3
+                        contentDescription = "Kembali",
+                        tint = Utama3,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
 
                 Text(
-                    text = "Detail Proyek",
+                    color = Color.Black,
+                    text = "Detail Group",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -693,100 +902,189 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                 Spacer(modifier = Modifier.weight(1f))
 
                 IconButton(onClick = {}, enabled = false) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = null, tint = Color.Transparent)
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowBack,
+                        contentDescription = null,
+                        tint = Color.Transparent
+                    )
                 }
-
             }
 
-            // Detail Proyek Card
+            // Detail Group Card
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+                    .clickable {
+                        navController.navigate("add_todo/$userId/$groupId/$projectId")
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Box(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = project.name ?: "Tanpa Nama",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(onClick = {
-                            // Log untuk memverifikasi nilai sebelum penghapusan
-                            println("Attempting to delete project with userId: $userId, groupId: $groupId, projectId: $projectId")
-                            coroutineScope.launch {
-                                try {
-                                    val response = apiService.deleteProject(userId, groupId, projectId)
-                                    if (response == Unit) { // Asumsi deleteProject mengembalikan Unit
-                                        navController.popBackStack()
-                                        Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: HttpException) {
-                                    when (e.code()) {
-                                        403 -> {
-                                            println("HTTP 403 Forbidden: ${e.message()} - Possible groupId mismatch")
-                                            Toast.makeText(context, "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.", Toast.LENGTH_LONG).show()
-                                        }
-                                        else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
-                                    }
-                                    e.printStackTrace()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    e.printStackTrace()
-                                }
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = project.name ?: "Tanpa Nama",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                ),
+                                color = Color.Black
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Grey1
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Tanggal dengan titik oranye
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            color = Utama3,
+                                            shape = CircleShape
+                                        )
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = formatDateRange(project.startDate, project.endDate),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Utama3,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
-                        }) {
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Ikon Grup dari proyek
+                        val iconMapping = mapOf(
+                            "fas fa-users" to Icons.Default.Group,
+                            "fas fa-folder" to Icons.Default.Folder,
+                            "fas fa-star" to Icons.Default.Star,
+                            "fas fa-home" to Icons.Default.Home,
+                            "fas fa-tasks" to Icons.Default.List,
+                            "fas fa-calendar" to Icons.Default.CalendarMonth,
+                            "fas fa-book" to Icons.Default.Book,
+                            "fas fa-bell" to Icons.Default.Notifications,
+                            "fas fa-heart" to Icons.Default.Favorite,
+                            "fas fa-check" to Icons.Default.CheckCircle,
+                            "fas fa-envelope" to Icons.Default.Email,
+                            "fas fa-image" to Icons.Default.Image,
+                            "fas fa-file" to Icons.Default.Description,
+                            "fas fa-clock" to Icons.Default.AccessTime,
+                            "fas fa-cog" to Icons.Default.Settings,
+                            "fas fa-shopping-cart" to Icons.Default.ShoppingCart,
+                            "fas fa-tag" to Icons.Default.LocalOffer,
+                            "fas fa-link" to Icons.Default.Link,
+                            "fas fa-map" to Icons.Default.Place,
+                            "fas fa-music" to Icons.Default.MusicNote,
+                            "fas fa-phone" to Icons.Default.Call,
+                            "fas fa-camera" to Icons.Default.PhotoCamera,
+                            "fas fa-search" to Icons.Default.Search,
+                            "fas fa-cloud" to Icons.Default.Cloud,
+                            "fas fa-person" to Icons.Default.Person
+                        )
+                        Row {
+                            IconButton(onClick = {
+                                navController.navigate("add_todo/$userId/$groupId/$projectId")
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Group",
+                                    tint = Utama2
+                                )
+                            }
+                            IconButton(onClick = {
+                                println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
+                                coroutineScope.launch {
+                                    try {
+                                        val response = apiService.deleteProject(userId, groupId, projectId)
+                                        if (response == Unit) {
+                                            navController.popBackStack()
+                                            Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: HttpException) {
+                                        when (e.code()) {
+                                            403 -> {
+                                                println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
+                                                Toast.makeText(
+                                                    context,
+                                                    "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                            else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                        }
+                                        e.printStackTrace()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        e.printStackTrace()
+                                    }
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Hapus Proyek",
+                                    tint = Color.Red
+                                )
+                            }
+                        }
+
+                        val selectedIcon = iconMapping[group.icon?.lowercase() ?: "fas fa-users"] ?: Icons.Default.Group
+                        val tint = when (group.name?.lowercase() ?: group.icon?.lowercase() ?: "") {
+                            "office project", "laptop" -> Color(0xFFFF6F61)
+                            "personal project", "clipboard" -> Color(0xFF4FC3F7)
+                            "daily study", "chart" -> Color(0xFF81C784)
+                            else -> Utama2
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .background(
+                                    color = Color(0xFFFFE5E5),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete Project",
-                                tint = Color.Red
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Deskripsi: ${project.description ?: "Tidak ada deskripsi"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Mulai",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.Gray
-                            )
-                            Text(
-                                text = project.startDate ?: "-",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Selesai",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.Gray
-                            )
-                            Text(
-                                text = project.endDate ?: "-",
-                                style = MaterialTheme.typography.bodyMedium
+                                imageVector = selectedIcon,
+                                contentDescription = "Ikon Grup",
+                                tint = tint,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // Judul Bagian Tugas
             Text(
-                text = "Daftar Tugas",
+                color = Color.Black,
+                text = "Task List",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -795,8 +1093,13 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Utama2)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Utama2
+                    )
                 }
             } else if (tasks.isEmpty()) {
                 Box(
@@ -822,6 +1125,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             userId = userId,
                             groupId = groupId,
                             projectId = projectId,
+                            navController = navController,
                             onStatusChange = { updatedTask ->
                                 coroutineScope.launch {
                                     try {
@@ -838,7 +1142,8 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                             )
                                         )
                                         if (response.isSuccessful) {
-                                            tasks[tasks.indexOf(task)] = response.body()!!
+                                            // Refresh daftar tugas setelah pembaruan berhasil
+                                            fetchTasks()
                                             Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
                                         } else {
                                             Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
@@ -849,16 +1154,12 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                     }
                                 }
                             },
-                            onEditClick = {
-                                println("Edit clicked for taskId: ${task.id}")
-                                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
-                            },
                             onDeleteClick = {
-                                println("Attempting to delete task with userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
+                                println("Mencoba menghapus tugas dengan userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
                                 coroutineScope.launch {
                                     try {
                                         apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)
-                                        tasks.remove(task)
+                                        fetchTasks() // Refresh daftar tugas setelah penghapusan
                                         Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
                                     } catch (e: Exception) {
                                         e.printStackTrace()
@@ -874,13 +1175,24 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
         Button(
             onClick = {
-                navController.navigate("add_task/$userId/$groupId/$projectId/-1")
+                if (userId != -1 && groupId != -1 && projectId != 0) {
+                    println("Navigasi ke add_task dengan userId: $userId, groupId: $groupId, projectId: $projectId")
+                    navController.navigate("add_task/$userId/$groupId/$projectId/-1")
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Gagal menambah tugas: Parameter tidak valid (userId: $userId, groupId: $groupId, projectId: $projectId)",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFC278)),
+                .padding(horizontal = 16.dp, vertical = 40.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Utama1
+            ),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
                 pressedElevation = 0.dp
@@ -888,7 +1200,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         ) {
             Icon(Icons.Default.Add, contentDescription = "Tambah Tugas")
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Tambah Tugas")
+            Text("Add Task")
         }
     }
 }
@@ -899,10 +1211,12 @@ fun TaskCard(
     userId: Int,
     groupId: Int,
     projectId: Int,
+    navController: NavHostController,
     onStatusChange: (Task) -> Unit,
-    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val Utama3 = Color(0xFFED9455)
+
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val apiService = RetrofitInstance.api
@@ -910,10 +1224,14 @@ fun TaskCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEditClick)
+            .clickable {
+                println("Edit diklik untuk taskId: ${task.id}")
+                navController.navigate("add_task/$userId/$groupId/$projectId/${task.id}")
+            }
             .padding(vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(8.dp)
     ) {
         Row(
             modifier = Modifier
@@ -929,36 +1247,75 @@ fun TaskCard(
                         val updatedTask = task.copy(status = isChecked)
                         onStatusChange(updatedTask)
                     },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Utama3,
+                        uncheckedColor = Color.Gray
+                    ),
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 Column {
                     Text(
                         text = task.name ?: "Tanpa Nama",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Batas Waktu: ${task.deadline ?: "Tanpa Batas"}",
+                    task.deadline?.let { deadline ->
+                        val formattedDateTime = formatTime(deadline)
+                        Text(
+                            text = "⏰: $formattedDateTime",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Utama3,
+                            fontSize = 12.sp
+                        )
+                    } ?: Text(
+                        text = "⏰: No Deadline",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = Utama3,
+                        fontSize = 12.sp
                     )
                 }
             }
-            Row {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Task",
-                    modifier = Modifier.clickable { onEditClick() }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        color = Color.Red,
+                        shape = CircleShape
+                    )
+            ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Task",
-                    modifier = Modifier.clickable { onDeleteClick() },
-                    tint = Color.Red
+                    contentDescription = "Hapus Tugas",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
+    }
+}
+
+fun formatTime(deadline: String): String {
+    return try {
+        val parts = deadline.split(" ")
+        val datePart = parts[0].split("/")
+        val timePart = parts[1] // HH:MM
+
+        val day = datePart[2].toInt()
+        val month = datePart[1].toInt()
+        val year = datePart[0].toInt()
+
+        val monthNames = listOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        val monthName = monthNames[month - 1]
+
+        val time = timePart.substring(0, 5)
+
+        "$day $monthName $year, $time"
+    } catch (e: Exception) {
+        "Invalid Date"
     }
 }

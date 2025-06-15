@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
 import com.example.schedo.ui.AppNavHost
+import com.example.schedo.ui.BottomNavItem
 import com.example.schedo.util.PreferencesHelper
 
 class MainActivity : ComponentActivity() {
@@ -18,10 +19,15 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             val preferencesHelper = PreferencesHelper(this)
             val userId = preferencesHelper.getUserId()
+            val onboardingCompleted = preferencesHelper.isOnboardingCompleted()
             var groupId by remember { mutableStateOf(-1) }
             var projectId by remember { mutableStateOf(-1) }
 
-            val startDestination = if (userId != -1) "Home" else "login"
+            val startDestination = when {
+                !onboardingCompleted -> "onboarding"
+                userId == -1 -> "login"
+                else -> BottomNavItem.TODO.route
+            }
 
             AppNavHost(
                 navController = navController,
