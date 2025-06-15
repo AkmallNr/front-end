@@ -41,7 +41,7 @@ interface ApiService {
 
     // Other existing endpoints (unchanged)
     @POST("register")
-    suspend fun registerUser(@Body user: Map<String, String>): Response<User>
+    suspend fun registerUser(@Body user: Map<String, String>): Response<RegisterResponse>
 
     @GET("users")
     suspend fun getUsers(): Response<UserResponse>
@@ -50,7 +50,7 @@ interface ApiService {
     @GET("users/{userId}/projects")
     suspend fun getProjectsByUser(
         @Path("userId") userId: Int
-    ): ProjectResponse
+    ): Response<ProjectResponse>
 
     @GET("users/{userId}/tasks")
     suspend fun getTaskByUser(
@@ -93,7 +93,7 @@ interface ApiService {
     @POST("users/{userId}/groups/{groupId}/projects")
     suspend fun addProjectToGroup(
         @Path("userId") userId: Int,
-        @Path("groupId") groupId: Int,
+        @Path("groupId") groupId: Int?,
         @Body projectRequest: ProjectRequest
     ): Response<Project>
 
@@ -112,6 +112,12 @@ interface ApiService {
         @Path("projectId") projectId: Int
     ): TaskResponse
 
+    @GET("tasks/without-group/{userId}/{projectId}")
+    suspend fun getTaskWithoutGroup(
+        @Path("userId") userId: Int,
+        @Path("projectId") projectId: Int
+    ): TaskResponse
+
     @GET("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun getTaskById(
         @Path("userId") userId: Int,
@@ -120,10 +126,9 @@ interface ApiService {
         @Path("taskId") taskId: Int
     ): TaskResponse
 
-    @PUT("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
+    @PUT("users/{userId}/projects/{projectId}/tasks/{taskId}")
     suspend fun updateTask(
         @Path("userId") userId: Int,
-        @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int,
         @Path("taskId") taskId: Int,
         @Body taskRequest: TaskRequest
@@ -139,22 +144,20 @@ interface ApiService {
     @PUT("users/{userId}/groups/{groupId}/projects/{projectId}")
     suspend fun updateProject(
         @Path("userId") userId: Int,
-        @Path("groupId") groupId: Int,
+        @Path("groupId") groupId: Int?,
         @Path("projectId") projectId: Int,
         @Body projectRequest: ProjectRequest
     ): Response<Project>
 
-    @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}")
+    @DELETE("users/{userId}/projects/{projectId}")
     suspend fun deleteProject(
         @Path("userId") userId: Int,
-        @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int
     )
 
     @DELETE("users/{userId}/groups/{groupId}/projects/{projectId}/tasks/{taskId}")
     suspend fun deleteTask(
         @Path("userId") userId: Int,
-        @Path("groupId") groupId: Int,
         @Path("projectId") projectId: Int,
         @Path("taskId") taskId: Int
     )
@@ -184,6 +187,12 @@ interface ApiService {
         @Path("scheduleId") scheduleId: Int,
         @Body schedule: Schedule
     )
+
+    @POST("users/{userId}/projects")
+    suspend fun addProjectToUser(
+        @Path("userId") userId: Int,
+        @Body project: ProjectRequest
+    ): Response<Project>
 
     @DELETE("users/{userId}/schedules/{scheduleId}")
     suspend fun deleteSchedule(
@@ -278,7 +287,8 @@ data class ProjectRequest(
     val description: String,
     val startDate: String?,
     val endDate: String,
-    val groupId: Int? = null // Add groupId to allow updating the group
+    val groupId: Int?, // Add groupId to allow updating the group
+    val userId: Int // Tambahkan userId yang wajib
 )
 
 data class TaskRequest(
