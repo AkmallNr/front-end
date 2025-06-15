@@ -1,5 +1,3 @@
-AddToDoScreen.kt
-
 package com.example.schedo.ui
 
 import android.util.Log
