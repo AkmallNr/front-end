@@ -578,7 +578,7 @@ fun AddTaskScreen(
                                 val response = if (taskId == null) {
                                     apiService.addTaskToProject(userId, groupId, projectId, taskRequest)
                                 } else {
-                                    apiService.updateTask(userId, groupId, projectId, taskId, taskRequest)
+                                    apiService.updateTask(userId, projectId, taskId, taskRequest)
                                 }
                                 if (response.isSuccessful) {
                                     Toast.makeText(context, if (taskId == null) "Tugas berhasil disimpan!" else "Tugas berhasil diperbarui!", Toast.LENGTH_SHORT).show()
@@ -1825,3 +1825,4 @@ private fun getMimeType(url: String): String? {
         else -> "*/*"
     }
 }
+               
