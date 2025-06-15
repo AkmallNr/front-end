@@ -24,6 +24,7 @@ import com.example.schedo.ui.theme.Grey1
 import com.example.schedo.ui.theme.Grey2
 import com.example.schedo.ui.theme.Utama2
 import com.example.schedo.R
+import com.example.schedo.network.GroupRequest
 import kotlinx.coroutines.launch
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -169,12 +170,24 @@ fun RegisterScreen(navController: NavHostController) {
                                     Log.d("RegisterScreen", "raw error body: $rawJson")
                                     if (response.isSuccessful) {
                                         // Log data user yang disimpan
-                                        val savedUser = response.body()
+                                        val savedUser = response.body()?.data
                                         Log.d("RegisterScreen", "savedUser: $savedUser")
                                         Log.d("RegisterScreen", "savedUser ID=${savedUser?.id} Name=${savedUser?.name} Email=${savedUser?.email}")
                                         navController.navigate("login") {
                                             popUpTo("register") { inclusive = true }
                                         }
+                                        if (savedUser != null) {
+                                            val groupRequest = GroupRequest(name = "Tanpa Label", icon = "fas-fa-users") // Gunakan null atau ikon valid seperti "fas fa-users"
+                                            val responseGroup = RetrofitInstance.api.addGroupToUser(savedUser.id, groupRequest)
+                                            if (responseGroup.isSuccessful) {
+                                                Log.d("RegisterScreen", "Group 'Tanpa Label' created successfully for user ID ${savedUser.id}")
+                                            } else {
+                                                val groupError = responseGroup.errorBody()?.string()
+                                                Log.e("RegisterScreen", "Failed to create group: $groupError")
+                                                errorMessage = "Registration successful, but failed to create default group: $groupError"
+                                            }
+                                        }
+
                                     } else {
                                         val errorBody = response.errorBody()?.string()
                                         Log.d("RegisterScreen", "Error response body: $errorBody")

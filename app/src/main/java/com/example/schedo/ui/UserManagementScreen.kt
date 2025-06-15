@@ -45,6 +45,42 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
 
+// Fungsi logout
+fun logout(
+    context: Context,
+    navController: NavHostController,
+    googleSignInClient: com.google.android.gms.auth.api.signin.GoogleSignInClient?,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    onLogoutComplete: () -> Unit
+) {
+    val preferencesHelper = PreferencesHelper(context)
+    coroutineScope.launch {
+        try {
+            // Hapus data sesi autentikasi manual
+            preferencesHelper.clearUserId()
+            preferencesHelper.clearSession() // Jika Anda menyimpan token autentikasi
+
+            // Logout dari Google Sign-In jika autentikasi Google digunakan
+            googleSignInClient?.let {
+                it.signOut().addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        println("Google Sign-Out successful")
+                    } else {
+                        println("Google Sign-Out failed: ${task.exception?.message}")
+                    }
+                    onLogoutComplete() // Panggil callback setelah proses selesai
+                }
+            } ?: run {
+                // Jika tidak ada GoogleSignInClient, langsung selesai
+                onLogoutComplete()
+            }
+        } catch (e: Exception) {
+            println("Logout error: ${e.message}")
+            onLogoutComplete() // Pastikan callback dipanggil meskipun ada error
+        }
+    }
+}
+
 @Composable
 fun UserManagementScreen(navController: NavHostController) {
     val context = LocalContext.current
@@ -60,6 +96,12 @@ fun UserManagementScreen(navController: NavHostController) {
     var userGroups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var selectedGroup by remember { mutableStateOf<Group?>(null) }
     var showGroupOptionsDialog by remember { mutableStateOf(false) }
+
+    // Inisialisasi GoogleSignInClient (opsional, hanya jika digunakan)
+    val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
+        .requestEmail()
+        .build()
+    val googleSignInClient = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
 
     // Launcher untuk memilih gambar
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -136,17 +178,6 @@ fun UserManagementScreen(navController: NavHostController) {
         } else {
             isLoading = false
             errorMessage = "Tidak ada user yang login"
-        }
-    }
-
-    // Fungsi logout
-    val logout: () -> Unit = {
-        coroutineScope.launch {
-            preferencesHelper.clearUserId()
-            navController.navigate("login") {
-                popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                launchSingleTop = true
-            }
         }
     }
 
@@ -287,7 +318,20 @@ fun UserManagementScreen(navController: NavHostController) {
 
                 // Tombol Logout di bagian bawah
                 Button(
-                    onClick = logout,
+                    onClick = {
+                        logout(
+                            context = context,
+                            navController = navController,
+                            googleSignInClient = googleSignInClient,
+                            coroutineScope = coroutineScope,
+                            onLogoutComplete = {
+                                navController.navigate("login") {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
                         contentColor = Color(0xFFE8A22A)
@@ -552,7 +596,7 @@ fun GroupOptionsDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Pilihan Grup",
+                text = "Pilihan Label",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF4A4A4A)
@@ -674,7 +718,7 @@ fun EditGroupDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Edit Grup",
+                text = "Edit Label",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF4A4A4A)
@@ -690,7 +734,7 @@ fun EditGroupDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Nama Grup", color = Color(0xFF757575)) },
+                        label = { Text("Nama Label", color = Color(0xFF757575)) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp)),

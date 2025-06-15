@@ -309,7 +309,7 @@ fun AppNavHost(
                     } else if (project != null) {
                         ProjectDetailScreen(
                             navController = navController,
-                            project = project!!,
+                            selectedProject = project!!,
                             userId = userId,
                             groupId = groupId
                         )
