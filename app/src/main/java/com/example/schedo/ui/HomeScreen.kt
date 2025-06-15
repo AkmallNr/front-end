@@ -59,6 +59,50 @@ import com.example.schedo.ui.theme.Utama1
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.min
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.NavController
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+fun logout(
+    context: Context,
+    navController: NavController,
+    googleSignInClient: GoogleSignInClient?,
+    coroutineScope: CoroutineScope,
+    onLogoutComplete: () -> Unit // Callback untuk memberi tahu saat logout selesai
+) {
+    val preferencesHelper = PreferencesHelper(context)
+
+    coroutineScope.launch {
+        try {
+            // Hapus data sesi autentikasi manual
+            preferencesHelper.clearUserId()
+            preferencesHelper.clearSession() // Jika Anda menyimpan token autentikasi
+
+            // Logout dari Google Sign-In jika autentikasi Google digunakan
+            googleSignInClient?.let {
+                it.signOut().addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        println("Google Sign-Out successful")
+                    } else {
+                        println("Google Sign-Out failed: ${task.exception?.message}")
+                    }
+                    onLogoutComplete() // Panggil callback setelah proses selesai
+                }
+            } ?: run {
+                // Jika tidak ada GoogleSignInClient, langsung selesai
+                onLogoutComplete()
+            }
+        } catch (e: Exception) {
+            println("Logout error: ${e.message}")
+            onLogoutComplete() // Pastikan callback dipanggil meskipun ada error
+        }
+    }
+}
 
 @Composable
 fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
@@ -172,18 +216,15 @@ fun HomeScreen(navController: NavHostController) {
     var isLoading by remember { mutableStateOf(false) }
     var shouldRefreshUserData by remember { mutableStateOf(false) }
 
-    // All available projects, groups, and tasks
     val allProjects = remember { mutableStateListOf<Project>() }
     val allTasks = remember { mutableStateListOf<Task>() }
     val groups = remember { mutableStateListOf<Group>() }
 
-    // Projects selected for display on home screen
     val selectedProjects = remember { mutableStateListOf<Project>() }
 
     var isProjectsLoading by remember { mutableStateOf(false) }
     var showAllProjects by remember { mutableStateOf(false) }
 
-    // State for project selection dialog
     var showProjectSelectionDialog by remember { mutableStateOf(false) }
 
     var weeklyCompletedTasks by remember { mutableStateOf<WeeklyCompletedTasksData?>(null) }
@@ -199,6 +240,11 @@ fun HomeScreen(navController: NavHostController) {
             }.time
         )
     }
+
+    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        .requestEmail()
+        .build()
+    val googleSignInClient = GoogleSignIn.getClient(context, gso)
 
     fun fetchUserData() {
         coroutineScope.launch {
@@ -241,25 +287,26 @@ fun HomeScreen(navController: NavHostController) {
 
     fun fetchProjects() {
         coroutineScope.launch {
-            isProjectsLoading = true
+            isLoading = true
             try {
                 val response = RetrofitInstance.api.getProjectsByUser(userId)
-                allProjects.clear()
-                allProjects.addAll(response.data)
-
-                val savedProjectIds = preferencesHelper.getSelectedProjectIds().mapNotNull { it.toIntOrNull() }
-                val initialSelected = allProjects.filter { project ->
-                    project.id?.let { savedProjectIds.contains(it) } ?: false
+                println("Respon API mentah untuk userId: $userId - ${response.body()}")
+                val data = response.body()?.data
+                if (data != null) {
+                    allProjects.clear()
+                    allProjects.addAll(data)
+                    println("Proyek berhasil diambil: ${allProjects.size} proyek untuk userId: $userId")
+                    allProjects.forEach { project ->
+                        println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
+                    }
+                } else {
+                    println("Data proyek kosong atau respons tidak valid untuk userId: $userId")
                 }
-                selectedProjects.clear()
-                selectedProjects.addAll(initialSelected)
-
-                Log.d("HomeScreen", "Projects fetched successfully: ${allProjects.size} projects")
             } catch (e: Exception) {
-                Log.e("HomeScreen", "Failed to fetch projects: ${e.message}")
+                println("Gagal mengambil proyek untuk userId: $userId - Error: ${e.message}")
                 e.printStackTrace()
             } finally {
-                isProjectsLoading = false
+                isLoading = false
             }
         }
     }
@@ -332,13 +379,6 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
-    fun logout() {
-        preferencesHelper.clearSession()
-        navController.navigate("login") {
-            popUpTo(navController.graph.startDestinationId) { inclusive = true }
-        }
-    }
-
     fun saveSelectedProjects(projects: List<Project>) {
         selectedProjects.clear()
         selectedProjects.addAll(projects)
@@ -380,7 +420,6 @@ fun HomeScreen(navController: NavHostController) {
                     .background(Background)
                     .padding(vertical = 50.dp)
             ) {
-                // Top bar with greeting and icons
                 item {
                     Row(
                         modifier = Modifier
@@ -462,7 +501,19 @@ fun HomeScreen(navController: NavHostController) {
                         }
 
                         Row {
-                            IconButton(onClick = { logout() }) {
+                            IconButton(onClick = {
+                                logout(
+                                    context = context,
+                                    navController = navController,
+                                    googleSignInClient = googleSignInClient,
+                                    coroutineScope = coroutineScope,
+                                    onLogoutComplete = {
+                                        navController.navigate("login") {
+                                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                        }
+                                    }
+                                )
+                            }) {
                                 Icon(
                                     imageVector = Icons.Filled.ExitToApp,
                                     contentDescription = "Logout",
@@ -518,9 +569,7 @@ fun HomeScreen(navController: NavHostController) {
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Black
                                 )
-
                                 Spacer(modifier = Modifier.height(2.dp))
-
                                 Text(
                                     "Task Completed",
                                     fontSize = 12.sp,
@@ -580,7 +629,6 @@ fun HomeScreen(navController: NavHostController) {
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
-
                             Text(
                                 "${selectedProjects.size}",
                                 fontSize = 14.sp,
@@ -588,7 +636,6 @@ fun HomeScreen(navController: NavHostController) {
                                 modifier = Modifier.padding(start = 8.dp)
                             )
                         }
-
                         IconButton(
                             onClick = { showProjectSelectionDialog = true },
                             modifier = Modifier
@@ -605,7 +652,6 @@ fun HomeScreen(navController: NavHostController) {
 
                 item { Spacer(modifier = Modifier.height(8.dp)) }
 
-                // Project Group cards
                 if (isProjectsLoading) {
                     item {
                         Box(
@@ -702,7 +748,6 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
 
-            // Project Selection Dialog (dipindahkan ke luar LazyColumn)
             if (showProjectSelectionDialog) {
                 ProjectSelectionDialog(
                     allProjects = allProjects,

@@ -11,10 +11,16 @@ import androidx.navigation.compose.rememberNavController
 import com.example.schedo.ui.AppNavHost
 import com.example.schedo.ui.BottomNavItem
 import com.example.schedo.util.PreferencesHelper
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createNotificationChannel() // Panggil metode kelas
+
         setContent {
             val navController = rememberNavController()
             val preferencesHelper = PreferencesHelper(this)
@@ -35,6 +41,25 @@ class MainActivity : ComponentActivity() {
                 projectId = projectId,
                 startDestination = startDestination
             )
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            if (notificationManager.getNotificationChannel("reminder_channel") == null) {
+                val channel = NotificationChannel(
+                    "reminder_channel",
+                    "Reminder Channel",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Channel untuk notifikasi pengingat"
+                    enableLights(true)
+                    enableVibration(true)
+                    setShowBadge(true)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
         }
     }
 }

@@ -60,34 +60,16 @@ fun AddTodoScreen(
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val isoSdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
 
-    val initialStartDate = project?.startDate?.let {
-        try {
-            val parsedDate = isoSdf.parse(it)
-            parsedDate?.let { date -> sdf.format(date) } ?: sdf.format(Date())
-        } catch (e: Exception) {
-            e.printStackTrace()
-            sdf.format(Date())
-        }
-    } ?: sdf.format(Date())
+    // Inisialisasi startDate dan endDate sebagai string kosong
+    var startDate by remember { mutableStateOf(if (project?.startDate != null) sdf.format(isoSdf.parse(project.startDate) ?: Date()) else "") }
+    var endDate by remember { mutableStateOf(if (project?.endDate != null) sdf.format(isoSdf.parse(project.endDate) ?: Date()) else "") }
 
-    val initialEndDate = project?.endDate?.let {
-        try {
-            val parsedDate = isoSdf.parse(it)
-            parsedDate?.let { date -> sdf.format(date) } ?: sdf.format(Date())
-        } catch (e: Exception) {
-            e.printStackTrace()
-            sdf.format(Date())
-        }
-    } ?: sdf.format(Date())
-
-    var startDate by remember { mutableStateOf(initialStartDate) }
-    var endDate by remember { mutableStateOf(initialEndDate) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
     var users = remember { mutableStateListOf<User>() }
     var isLoading by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(groups, groupId) {
         if (groups.isNotEmpty() && groupId != null) {
@@ -144,9 +126,24 @@ fun AddTodoScreen(
     }
 
     fun saveProject() {
-        if (selectedGroup == null) {
-            errorMessage = "Please select a task group"
-            println("Error: No group selected")
+        // Validasi jika startDate atau endDate kosong
+        if (startDate.isEmpty() || endDate.isEmpty()) {
+            errorMessage = "Please select both start date and end date"
+            return
+        }
+
+        val start = sdf.parse(startDate)
+        val end = sdf.parse(endDate)
+        if (start != null && end != null && start > end) {
+            errorMessage = "Start date cannot be after end date"
+            return
+        }
+
+        // Pastikan userId tersedia
+        val userIdToSave = users.find { it.id == currentUserId }?.id
+        if (userIdToSave == null) {
+            errorMessage = "User not found for userId $currentUserId"
+            println("Error: User not found for userId $currentUserId")
             return
         }
 
@@ -155,38 +152,30 @@ fun AddTodoScreen(
             description = description,
             startDate = startDate,
             endDate = endDate,
-            groupId = if (projectId != null) selectedGroup?.id else null
+            groupId = selectedGroup?.id, // Nullable jika tidak ada grup
+            userId = userIdToSave // Tambahkan userId
         )
         val isiProject = mapOf(
             "nama user" to (users.find { it.id == currentUserId }?.name ?: "Default Name"),
-            "taskgroup" to (selectedGroup?.name ?: "Unknown Group"),
+            "taskgroup" to (selectedGroup?.name ?: "Tanpa Label"),
             "projectName" to projectName,
             "description" to description,
             "startDate" to startDate,
             "endDate" to endDate,
-            "groupId" to (selectedGroup?.id?.toString() ?: "null")
+            "groupId" to (selectedGroup?.id?.toString() ?: "null"),
+            "userId" to userIdToSave.toString()
         )
         println("Isi project: $isiProject")
         println("Saving project with data: $projectData")
 
         coroutineScope.launch {
-            val user = users.find { it.id == currentUserId }
-            if (user == null) {
-                errorMessage = "User not found for userId $currentUserId"
-                println("Error: User not found for userId $currentUserId")
-                return@launch
-            }
-
-            val groupIdToSave = selectedGroup?.id ?: 0
-            val userIdToSave = user.id
-            println("user id: $userIdToSave")
-            println("grup id: $groupIdToSave")
-
             try {
                 val response = if (projectId == null) {
-                    RetrofitInstance.api.addProjectToGroup(userIdToSave, groupIdToSave, projectData)
+                        selectedGroup?.let {
+                            RetrofitInstance.api.addProjectToGroup(userIdToSave, it.id, projectData)
+                        } ?: throw IllegalStateException("Selected group is null unexpectedly")
                 } else {
-                    RetrofitInstance.api.updateProject(userIdToSave, groupIdToSave, projectId, projectData)
+                    RetrofitInstance.api.updateProject(userIdToSave, selectedGroup?.id, projectId, projectData)
                 }
                 if (response.isSuccessful) {
                     println("Project saved successfully!")
@@ -212,7 +201,7 @@ fun AddTodoScreen(
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
             title = { Text("Sukses") },
-            text = { Text("Project berhasil disimpan!") },
+            text = { Text("Group berhasil disimpan!") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -221,8 +210,8 @@ fun AddTodoScreen(
                         selectedGroup = null
                         projectName = ""
                         description = ""
-                        startDate = sdf.format(Date())
-                        endDate = sdf.format(Date())
+                        startDate = ""
+                        endDate = ""
                         fetchUsers()
                     }
                 ) {
@@ -278,6 +267,7 @@ fun AddTodoScreen(
                         onDismiss = { showProjectModal = false; onDismiss() },
                         isLoading = isLoading,
                         errorMessage = errorMessage,
+                        onErrorMessageChange = { errorMessage = it },
                         userId = currentUserId
                     )
                 }
@@ -300,18 +290,21 @@ fun BottomSheetProjectModal(
     onEndDateChange: (String) -> Unit,
     groups: List<Group>,
     selectedGroup: Group?,
-    onGroupSelected: (Group) -> Unit,
+    onGroupSelected: (Group?) -> Unit,
     onAddGroup: () -> Unit,
     onGroupsUpdated: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
+    onErrorMessageChange: (String?) -> Unit,
     userId: Int
 ) {
     var showDatePickerStart by remember { mutableStateOf(false) }
     var showDatePickerEnd by remember { mutableStateOf(false) }
     var showAddGroupDialog by remember { mutableStateOf(false) }
+
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     if (showAddGroupDialog) {
         AddGroupDialog(
@@ -330,7 +323,7 @@ fun BottomSheetProjectModal(
             .padding(16.dp)
     ) {
         Text(
-            text = if (project == null) "Add Project" else "Edit Project",
+            text = if (project == null) "Add Group" else "Edit Group",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
@@ -352,7 +345,7 @@ fun BottomSheetProjectModal(
         Spacer(modifier = Modifier.height(16.dp))
 
         ProjectTextField(
-            label = "Project Name",
+            label = "Group Name",
             value = projectName,
             onValueChange = onProjectNameChange
         )
@@ -369,7 +362,7 @@ fun BottomSheetProjectModal(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Group",
+            text = "Label",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -436,21 +429,51 @@ fun BottomSheetProjectModal(
         }
     }
 
+    val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val startDateMillis = remember(startDate) { if (startDate.isNotEmpty()) sdfDate.parse(startDate)?.time ?: 0L else 0L }
+    val endDateMillis = remember(endDate) { if (endDate.isNotEmpty()) sdfDate.parse(endDate)?.time ?: Long.MAX_VALUE else Long.MAX_VALUE }
+
+    // State untuk DatePicker
+    val datePickerStateStart = rememberDatePickerState(
+        initialSelectedDateMillis = if (startDate.isNotEmpty()) startDateMillis else System.currentTimeMillis(),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return utcTimeMillis <= endDateMillis || endDate.isEmpty()
+            }
+        }
+    )
+
+    val datePickerStateEnd = rememberDatePickerState(
+        initialSelectedDateMillis = if (endDate.isNotEmpty()) endDateMillis else System.currentTimeMillis(),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return utcTimeMillis >= startDateMillis || startDate.isEmpty()
+            }
+        }
+    )
+
     if (showDatePickerStart) {
         DatePickerDialog(
             onDismissRequest = { showDatePickerStart = false },
             confirmButton = {
-                TextButton(onClick = { showDatePickerStart = false }) { Text("OK") }
+                TextButton(onClick = {
+                    datePickerStateStart.selectedDateMillis?.let { millis ->
+                        val selectedDate = Date(millis)
+                        val formattedDate = sdf.format(selectedDate)
+                        if (endDate.isEmpty() || selectedDate.time <= sdfDate.parse(endDate)?.time ?: Long.MAX_VALUE) {
+                            onStartDateChange(formattedDate)
+                            showDatePickerStart = false
+                        } else {
+                            onErrorMessageChange("Start date cannot be after end date")
+                        }
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerStart = false }) { Text("Cancel") }
             }
         ) {
-            val datePickerState = rememberDatePickerState()
-            DatePicker(state = datePickerState)
-            LaunchedEffect(datePickerState.selectedDateMillis) {
-                datePickerState.selectedDateMillis?.let { millis ->
-                    val formattedDate = formatDate(millis)
-                    onStartDateChange(formattedDate)
-                }
-            }
+            DatePicker(state = datePickerStateStart)
         }
     }
 
@@ -458,17 +481,24 @@ fun BottomSheetProjectModal(
         DatePickerDialog(
             onDismissRequest = { showDatePickerEnd = false },
             confirmButton = {
-                TextButton(onClick = { showDatePickerEnd = false }) { Text("OK") }
+                TextButton(onClick = {
+                    datePickerStateEnd.selectedDateMillis?.let { millis ->
+                        val selectedDate = Date(millis)
+                        val formattedDate = sdf.format(selectedDate)
+                        if (startDate.isEmpty() || selectedDate.time >= sdfDate.parse(startDate)?.time ?: 0L) {
+                            onEndDateChange(formattedDate)
+                            showDatePickerEnd = false
+                        } else {
+                            onErrorMessageChange("End date cannot be before start date")
+                        }
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerEnd = false }) { Text("Cancel") }
             }
         ) {
-            val datePickerState = rememberDatePickerState()
-            DatePicker(state = datePickerState)
-            LaunchedEffect(datePickerState.selectedDateMillis) {
-                datePickerState.selectedDateMillis?.let { millis ->
-                    val formattedDate = formatDate(millis)
-                    onEndDateChange(formattedDate)
-                }
-            }
+            DatePicker(state = datePickerStateEnd)
         }
     }
 }
@@ -518,13 +548,13 @@ fun AddGroupDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah Grup") },
+        title = { Text("Tambah Label") },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama Grup") },
+                    label = { Text("Nama Label") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { keyboardController?.hide() })
@@ -581,7 +611,9 @@ fun AddGroupDialog(
                                                     .padding(4.dp)
                                                     .size(40.dp)
                                                     .background(
-                                                        if (selectedIcon == iconId) Color.LightGray.copy(alpha = 0.3f)
+                                                        if (selectedIcon == iconId) Color.LightGray.copy(
+                                                            alpha = 0.3f
+                                                        )
                                                         else Color.Transparent,
                                                         RoundedCornerShape(8.dp)
                                                     )
@@ -649,7 +681,7 @@ fun AddGroupDialog(
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Tambah Grup")
+                    Text("Tambah Label")
                 }
             }
         },
@@ -665,10 +697,11 @@ fun AddGroupDialog(
 fun GroupChipSelector(
     groups: List<Group>,
     selectedGroup: Group?,
-    onGroupSelected: (Group) -> Unit,
+    onGroupSelected: (Group?) -> Unit, // Pastikan nullable
     onAddGroup: () -> Unit
 ) {
     val fontAwesomeIcons = listOf(
+        Pair("fas fa-false", Icons.Default.Clear),
         Pair("fas fa-users", Icons.Default.Group),
         Pair("fas fa-folder", Icons.Default.Folder),
         Pair("fas fa-star", Icons.Default.Star),
@@ -684,6 +717,7 @@ fun GroupChipSelector(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
+
         groups.forEach { group ->
             val icon = fontAwesomeIcons.find { it.first == group.icon }?.second ?: Icons.Default.Group
             GroupChip(

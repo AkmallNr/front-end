@@ -46,7 +46,7 @@ import com.example.schedo.model.Task
 import com.example.schedo.network.QuoteRequest
 import com.example.schedo.network.RetrofitInstance
 import com.example.schedo.network.TaskRequest
-import com.example.schedo.receiver.NotificationReceiver
+import com.example.schedo.receiver.AlarmReceiver
 import com.example.schedo.ui.theme.Background
 import com.example.schedo.ui.theme.Grey1
 import com.example.schedo.ui.theme.Utama1
@@ -231,29 +231,80 @@ fun AddTaskScreen(
     var isLoadingQuotes by remember { mutableStateOf(true) }
     var refreshQuotes by remember { mutableStateOf(0) }
 
-    val calendar = Calendar.getInstance()
-    calendar.set(2025, 4, 21, 19, 48) // Set to 07:48 PM WIB, May 21, 2025
-    var selectedDeadlineDate by remember {
-        mutableStateOf(
-            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).parse(
-                task?.deadline ?: SimpleDateFormat("yyyy/MM/dd HH:mm").format(Calendar.getInstance().time)
-            ) ?: Calendar.getInstance().time
-        )
-    }
-    var selectedReminderDate by remember {
+    // Tetapkan waktu saat ini (06:08 PM WIB, 15 Juni 2025)
+    val currentTimeMillis = Calendar.getInstance().apply {
+        time = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).parse("2025/06/15 18:08")!!
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    var selectedDeadlineDateMillis by remember { mutableStateOf<Long?>(null) }
+    var selectedReminderDateMillis by remember {
         mutableStateOf(
             if (task?.reminder != null && task.reminder != "Tidak") {
-                SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).parse(task.reminder) ?: Calendar.getInstance().time
+                val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                dateFormat.parse(task.reminder)?.time?.coerceAtLeast(currentTimeMillis)
             } else {
-                Calendar.getInstance().time
+                null
             }
         )
     }
 
-    val deadlineDatePickerState = rememberDatePickerState()
-    val deadlineTimePickerState = rememberTimePickerState()
-    val reminderDatePickerState = rememberDatePickerState()
-    val reminderTimePickerState = rememberTimePickerState()
+    // Inisialisasi DatePickerState dengan batasan waktu
+    val deadlineDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDeadlineDateMillis ?: currentTimeMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val calendar = Calendar.getInstance()
+                calendar.timeInMillis = utcTimeMillis
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                val startOfDay = calendar.timeInMillis
+                return startOfDay >= currentTimeMillis - (24 * 60 * 60 * 1000) // Izinkan hari ini
+            }
+        }
+    )
+    val deadlineTimePickerState = rememberTimePickerState(
+        initialHour = if (selectedDeadlineDateMillis != null) {
+            Calendar.getInstance().apply { timeInMillis = selectedDeadlineDateMillis!! }.get(Calendar.HOUR_OF_DAY)
+        } else {
+            Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        },
+        initialMinute = if (selectedDeadlineDateMillis != null) {
+            Calendar.getInstance().apply { timeInMillis = selectedDeadlineDateMillis!! }.get(Calendar.MINUTE)
+        } else {
+            Calendar.getInstance().get(Calendar.MINUTE)
+        }
+    )
+    val reminderDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedReminderDateMillis ?: currentTimeMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val calendar = Calendar.getInstance()
+                calendar.timeInMillis = utcTimeMillis
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                val startOfDay = calendar.timeInMillis
+                return startOfDay >= currentTimeMillis - (24 * 60 * 60 * 1000) // Izinkan hari ini
+            }
+        }
+    )
+    val reminderTimePickerState = rememberTimePickerState(
+        initialHour = if (selectedReminderDateMillis != null) {
+            Calendar.getInstance().apply { timeInMillis = selectedReminderDateMillis!! }.get(Calendar.HOUR_OF_DAY)
+        } else {
+            Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        },
+        initialMinute = if (selectedReminderDateMillis != null) {
+            Calendar.getInstance().apply { timeInMillis = selectedReminderDateMillis!! }.get(Calendar.MINUTE)
+        } else {
+            Calendar.getInstance().get(Calendar.MINUTE)
+        }
+    )
 
     val priorityOptions = listOf("Rendah", "Normal", "Tinggi")
 
@@ -289,11 +340,18 @@ fun AddTaskScreen(
                     priority = taskToEdit.priority ?: "Normal"
                     reminder = taskToEdit.reminder ?: "Tidak"
                     taskToEdit.deadline?.let {
-                        selectedDeadlineDate = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).parse(it) ?: Calendar.getInstance().time
+                        val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                        selectedDeadlineDateMillis = dateFormat.parse(it)?.time?.coerceAtLeast(currentTimeMillis)
                     }
                     taskToEdit.reminder?.let {
                         if (it != "Tidak") {
-                            selectedReminderDate = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).parse(it) ?: Calendar.getInstance().time
+                            val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                            val timeMillis = dateFormat.parse(it)?.time?.coerceAtLeast(currentTimeMillis)
+                            if (selectedDeadlineDateMillis != null && timeMillis != null && timeMillis > selectedDeadlineDateMillis!!) {
+                                selectedReminderDateMillis = selectedDeadlineDateMillis
+                            } else {
+                                selectedReminderDateMillis = timeMillis
+                            }
                         }
                     }
                     taskToEdit.attachment?.let { urls ->
@@ -386,7 +444,7 @@ fun AddTaskScreen(
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.DateRange, contentDescription = "Deadline", tint = Utama2) },
                     title = "Batas waktu",
-                    value = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedDeadlineDate),
+                    value = selectedDeadlineDateMillis?.let { SimpleDateFormat("yyyy/MM/dd HH:mm").format(Date(it)) } ?: "Belum diatur",
                     onClick = { showDeadlineDatePicker = true }
                 )
             }
@@ -395,7 +453,7 @@ fun AddTaskScreen(
                 EnhancedTaskOptionRow(
                     icon = { Icon(Icons.Default.Notifications, contentDescription = "Reminder", tint = Utama2) },
                     title = "Pengingat",
-                    value = if (reminder == "Tidak") "Tidak" else SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate),
+                    value = if (reminder == "Tidak") "Tidak" else selectedReminderDateMillis?.let { SimpleDateFormat("yyyy/MM/dd HH:mm").format(Date(it)) } ?: "Belum diatur",
                     chipStyle = reminder != "Tidak",
                     onClick = {
                         if (reminder == "Tidak") {
@@ -485,15 +543,36 @@ fun AddTaskScreen(
                             Toast.makeText(context, "Judul tugas tidak boleh kosong", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        println("user id : ${userId}, group id : ${groupId}, project id ${projectId}")
+
+                        // Validasi startDate dan endDate
+                        if (selectedDeadlineDateMillis == null) {
+                            Toast.makeText(context, "Batas waktu harus diatur", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        val startDateMillis = selectedDeadlineDateMillis!!
+                        val endDateMillis = if (reminder != "Tidak" && selectedReminderDateMillis != null) selectedReminderDateMillis!! else Long.MAX_VALUE
+                        if (startDateMillis < currentTimeMillis) {
+                            Toast.makeText(context, "Batas waktu tidak boleh sebelum waktu sekarang", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (reminder != "Tidak" && selectedReminderDateMillis != null && endDateMillis < currentTimeMillis) {
+                            Toast.makeText(context, "Pengingat tidak boleh sebelum waktu sekarang", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (reminder != "Tidak" && selectedReminderDateMillis != null && endDateMillis > startDateMillis) {
+                            Toast.makeText(context, "Pengingat tidak boleh melebihi batas waktu", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        println("user id : $userId, group id : $groupId, project id $projectId")
 
                         val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                         val taskRequest = TaskRequest(
                             id = task?.id,
                             name = taskTitle.text.trim(),
                             description = note.trim(),
-                            deadline = dateFormat.format(selectedDeadlineDate),
-                            reminder = if (reminder == "Tidak") "Tidak" else dateFormat.format(selectedReminderDate),
+                            deadline = selectedDeadlineDateMillis?.let { dateFormat.format(Date(it)) } ?: "",
+                            reminder = if (reminder == "Tidak") "Tidak" else selectedReminderDateMillis?.let { dateFormat.format(Date(it)) },
                             priority = priority,
                             attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
                             status = task?.status ?: false,
@@ -566,8 +645,8 @@ fun AddTaskScreen(
                                 id = taskId,
                                 name = taskTitle.text.trim(),
                                 description = note.trim().takeIf { it.isNotBlank() },
-                                deadline = dateFormat.format(selectedDeadlineDate),
-                                reminder = if (reminder == "Tidak") null else dateFormat.format(selectedReminderDate),
+                                deadline = selectedDeadlineDateMillis?.let { dateFormat.format(Date(it)) } ?: "",
+                                reminder = if (reminder == "Tidak") null else selectedReminderDateMillis?.let { dateFormat.format(Date(it)) },
                                 priority = priority,
                                 attachment = uploadedAttachments.takeIf { it.isNotEmpty() },
                                 status = task?.status ?: false,
@@ -613,9 +692,9 @@ fun AddTaskScreen(
                         deadlineDatePickerState.selectedDateMillis?.let { millis ->
                             val calendar = Calendar.getInstance()
                             calendar.timeInMillis = millis
-                            selectedDeadlineDate = calendar.time
+                            selectedDeadlineDateMillis = millis // Simpan tanggal dulu
                             showDeadlineDatePicker = false
-                            showDeadlineTimePicker = true
+                            showDeadlineTimePicker = true // Buka TimePicker
                         }
                     }) {
                         Text("Pilih Jam")
@@ -641,11 +720,18 @@ fun AddTaskScreen(
                     Button(
                         onClick = {
                             val calendar = Calendar.getInstance()
-                            calendar.time = selectedDeadlineDate
-                            calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
-                            calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
-                            selectedDeadlineDate = calendar.time
-                            showDeadlineTimePicker = false
+                            selectedDeadlineDateMillis?.let { dateMillis ->
+                                calendar.timeInMillis = dateMillis
+                                calendar.set(Calendar.HOUR_OF_DAY, deadlineTimePickerState.hour)
+                                calendar.set(Calendar.MINUTE, deadlineTimePickerState.minute)
+                                val newDeadlineMillis = calendar.timeInMillis
+                                if (newDeadlineMillis < currentTimeMillis) {
+                                    Toast.makeText(context, "Jam tidak boleh kurang dari 06:08 PM", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    selectedDeadlineDateMillis = newDeadlineMillis
+                                    showDeadlineTimePicker = false
+                                }
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Utama2)
                     ) {
@@ -669,7 +755,7 @@ fun AddTaskScreen(
             DatePickerDialog(
                 onDismissRequest = {
                     showReminderDatePicker = false
-                    reminder = "Tidak"
+                    if (reminder == "Setel Pengingat") reminder = "Tidak" // Kembali ke "Tidak" jika dibatalkan
                 },
                 confirmButton = {
                     Button(
@@ -677,7 +763,7 @@ fun AddTaskScreen(
                             reminderDatePickerState.selectedDateMillis?.let { millis ->
                                 val calendar = Calendar.getInstance()
                                 calendar.timeInMillis = millis
-                                selectedReminderDate = calendar.time
+                                selectedReminderDateMillis = millis
                                 showReminderDatePicker = false
                                 showReminderTimePicker = true
                             }
@@ -712,19 +798,38 @@ fun AddTaskScreen(
                 confirmButton = {
                     Button(onClick = {
                         val calendar = Calendar.getInstance()
-                        calendar.time = selectedReminderDate
+                        // Pastikan selectedReminderDateMillis tidak null dengan fallback ke currentTimeMillis
+                        val dateMillis = selectedReminderDateMillis ?: currentTimeMillis
+                        calendar.timeInMillis = dateMillis
                         calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
                         calendar.set(Calendar.MINUTE, reminderTimePickerState.minute)
-                        selectedReminderDate = calendar.time
-                        reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(selectedReminderDate)
-                        showReminderTimePicker = false
+                        val newReminderMillis = calendar.timeInMillis
 
-                        scheduleReminderNotification(
-                            context = context,
-                            reminderTime = selectedReminderDate,
-                            title = "Pengingat To-Do",
-                            message = "Tugasmu '${taskTitle.text}' perlu dikerjakan!\n\nQuote hari ini:\n\"${selectedQuote?.content}\""
-                        )
+                        when {
+                            newReminderMillis < currentTimeMillis -> {
+                                Toast.makeText(context, "Jam tidak boleh kurang dari 07:49 PM", Toast.LENGTH_SHORT).show()
+                            }
+                            selectedDeadlineDateMillis != null && newReminderMillis > selectedDeadlineDateMillis!! -> {
+                                Toast.makeText(context, "Pengingat tidak boleh melebihi batas waktu", Toast.LENGTH_SHORT).show()
+                            }
+                            else -> {
+                                selectedReminderDateMillis = newReminderMillis
+                                reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(Date(newReminderMillis))
+                                showReminderTimePicker = false // Tutup dialog setelah sukses
+
+                                scheduleReminderNotification(
+                                    context = context,
+                                    reminderTimeMillis = selectedReminderDateMillis!!,
+                                    title = "Pengingat To-Do",
+                                    message = "Tugasmu '${taskTitle.text}' perlu dikerjakan!",
+                                    quote = selectedQuote?.content ?: "Tidak ada quote hari ini"
+                                )
+                            }
+                        }
+                        // Pastikan dialog ditutup meskipun validasi gagal (opsional)
+                        if (newReminderMillis < currentTimeMillis || (selectedDeadlineDateMillis != null && newReminderMillis > selectedDeadlineDateMillis!!)) {
+                            showReminderTimePicker = false // Tutup dialog setelah menampilkan toast
+                        }
                     }) {
                         Text("Simpan")
                     }
@@ -744,72 +849,44 @@ fun AddTaskScreen(
                 TimePicker(state = reminderTimePickerState)
             }
         }
-
-        if (showNoteDialog) {
-            AlertDialog(
-                onDismissRequest = { showNoteDialog = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = { showNoteDialog = false },
-                        colors = ButtonDefaults.textButtonColors(containerColor = Utama2)
-                    ) {
-                        Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showNoteDialog = false }) {
-                        Text("Batal", color = Utama2)
-                    }
-                },
-                text = {
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Utama2)
-                    )
-                }
-            )
-        }
-
-        if (showAttachmentDialog) {
-            AttachmentDialogContent(
-                attachmentList = attachmentList,
-                onDismiss = { showAttachmentDialog = false },
-                onUpdate = { newList -> attachmentList = newList },
-                filePickerLauncher = filePickerLauncher,
-                context = context
-            )
-        }
     }
 }
 
-fun scheduleReminderNotification(
-    context: Context,
-    reminderTime: Date,
-    title: String,
-    message: String,
-    notificationId: Int = Random().nextInt()
-) {
-    val intent = Intent(context, NotificationReceiver::class.java).apply {
+// Fungsi scheduleReminderNotification tetap sama seperti sebelumnya
+fun scheduleReminderNotification(context: Context, reminderTimeMillis: Long, title: String, message: String, quote: String) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val intent = Intent(context, AlarmReceiver::class.java).apply {
+        action = "com.example.schedo.REMINDER_ACTION"
         putExtra("title", title)
         putExtra("message", message)
+        putExtra("quote", quote) // Tambahkan quote ke Intent
     }
-
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        notificationId,
+        0,
         intent,
-        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    alarmManager.setExactAndAllowWhileIdle(
-        AlarmManager.RTC_WAKEUP,
-        reminderTime.time,
-        pendingIntent
-    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+        Toast.makeText(context, "Izin untuk alarm tepat diperlukan", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    try {
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            reminderTimeMillis,
+            pendingIntent
+        )
+        android.util.Log.d("AlarmScheduler", "Alarm scheduled for: ${Date(reminderTimeMillis)} with quote: $quote")
+    } catch (e: SecurityException) {
+        Toast.makeText(context, "Gagal menjadwalkan alarm: ${e.message}", Toast.LENGTH_SHORT).show()
+        android.util.Log.e("AlarmScheduler", "SecurityException: ${e.message}", e)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error menjadwalkan alarm: ${e.message}", Toast.LENGTH_SHORT).show()
+        android.util.Log.e("AlarmScheduler", "Exception: ${e.message}", e)
+    }
 }
 
 @Composable

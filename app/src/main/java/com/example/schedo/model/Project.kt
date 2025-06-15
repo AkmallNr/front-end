@@ -6,5 +6,5 @@ data class Project(
     val description: String?,
     val startDate: String?,
     val endDate: String?,
-    val groupId: Int // Pastikan ini ada
+    val groupId: Int? // Pastikan ini ada
 )

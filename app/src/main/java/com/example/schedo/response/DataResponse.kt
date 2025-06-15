@@ -7,8 +7,16 @@ data class UserResponse(
     val data: List<User>
 )
 
+data class RegisterResponse(
+    val data : User
+)
+
 data class ProjectResponse(
     val data: List<Project>
+)
+
+data class ProjectResponse2(
+    val data: Project
 )
 
 data class GroupResponse(

@@ -1,38 +1,46 @@
 package com.example.schedo.receiver
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.example.schedo.R
 
-class NotificationReceiver : BroadcastReceiver() {
+class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val title = intent.getStringExtra("title") ?: "Pengingat"
-        val message = intent.getStringExtra("message") ?: "Kamu punya tugas yang harus dikerjakan."
+        val message = intent.getStringExtra("message") ?: "Tugas perlu dikerjakan!"
+        val quote = intent.getStringExtra("quote") ?: "Tidak ada quote hari ini"
+        val notificationManager = NotificationManagerCompat.from(context)
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        val channelId = "todo_reminder_channel"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "ToDo Reminder",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.logofix) // pastikan icon ini ada
+        val notificationMessage = "$message\n\nQuote hari ini:\n\"$quote\""
+        val notification = NotificationCompat.Builder(context, "reminder_channel")
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // Ganti dengan ic_notification jika sudah ada
             .setContentTitle(title)
-            .setContentText(message)
+            .setContentText(notificationMessage)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(notificationMessage)) // Untuk teks panjang
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setVibrate(longArrayOf(0, 1000)) // Vibrasi untuk perhatian
+            .setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI) // Suara default
             .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(context, "Izin notifikasi diperlukan", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            notificationManager.notify(1, notification)
+            android.util.Log.d("AlarmReceiver", "Notifikasi dikirim: $title dengan quote: $quote")
+        } catch (e: Exception) {
+            Toast.makeText(context, "Gagal mengirim notifikasi: ${e.message}", Toast.LENGTH_SHORT).show()
+            android.util.Log.e("AlarmReceiver", "Error: ${e.message}", e)
+        }
     }
 }

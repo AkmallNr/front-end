@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -62,7 +61,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.schedo.model.Schedule
 import com.example.schedo.model.Attachment
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
@@ -183,13 +184,18 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByUser(userId).data
-                println("Respon API mentah untuk userId: $userId - $response")
-                projects.clear()
-                projects.addAll(response)
-                println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
-                projects.forEach { project ->
-                    println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
+                val response = apiService.getProjectsByUser(userId)
+                println("Respon API mentah untuk userId: $userId - ${response.body()}") // Log respons lengkap
+                val data = response.body()?.data // Pastikan data diambil dari response.body()
+                if (data != null) {
+                    projects.clear()
+                    projects.addAll(data)
+                    println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
+                    projects.forEach { project ->
+                        println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
+                    }
+                } else {
+                    println("Data proyek kosong atau respons tidak valid untuk userId: $userId")
                 }
             } catch (e: Exception) {
                 println("Gagal mengambil proyek untuk userId: $userId - Error: ${e.message}")
@@ -269,14 +275,14 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 }
 
                 when (selectedTab) {
-                    0 -> ProjectContentWithData(
+                    0 ->ProjectContentWithData(
                         navController = navController,
                         onProjectClick = { project -> selectedProject = project },
                         onEditClick = { project ->
                             showAddTodo = true
                         },
                         userId = userId,
-                        groupId = groupId,
+                        groupId = selectedGroupId, // Gunakan selectedGroupId sebagai default
                         groups = groups,
                         onShowAddTodo = { showAddTodo = it }
                     )
@@ -451,12 +457,14 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                     }
                 }
             } else {
-                ProjectDetailScreen(
-                    navController,
-                    selectedProject!!,
-                    userId,
-                    groupId = selectedProject!!.groupId
-                )
+                selectedProject?.groupId?.let {
+                    ProjectDetailScreen(
+                        navController,
+                        selectedProject!!,
+                        userId,
+                        groupId = it
+                    )
+                }
             }
         }
 
@@ -658,13 +666,18 @@ fun ProjectContentWithData(
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getProjectsByUser(userId).data
-                println("Respon API mentah untuk userId: $userId - $response")
-                projects.clear()
-                projects.addAll(response)
-                println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
-                projects.forEach { project ->
-                    println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
+                val response = apiService.getProjectsByUser(userId)
+                println("Respon API mentah untuk userId: $userId - ${response.body()}") // Log respons lengkap
+                val data = response.body()?.data // Pastikan data diambil dari response.body()
+                if (data != null) {
+                    projects.clear()
+                    projects.addAll(data)
+                    println("Proyek berhasil diambil: ${projects.size} proyek untuk userId: $userId")
+                    projects.forEach { project ->
+                        println("Proyek: id=${project.id}, nama=${project.name}, groupId=${project.groupId}")
+                    }
+                } else {
+                    println("Data proyek kosong atau respons tidak valid untuk userId: $userId")
                 }
             } catch (e: Exception) {
                 println("Gagal mengambil proyek untuk userId: $userId - Error: ${e.message}")
@@ -698,20 +711,12 @@ fun ProjectContentWithData(
         ) {
             items(projects.size) { index ->
                 val project = projects[index]
-                val group = groups.find { it.id == project.groupId }
-                if (group != null) {
-                    ProjectCard(
-                        project = project,
-                        group = group,
-                        onClick = { onProjectClick(project) }
-                    )
-                } else {
-                    ProjectCard(
-                        project = project,
-                        group = Group(id = -1, name = "Unknown", icon = null.toString()),
-                        onClick = { onProjectClick(project) }
-                    )
-                }
+                val group = groups.find { it.id == project.groupId } ?: Group(id = -1, name = "No Label", icon = null.toString())
+                ProjectCard(
+                    project = project,
+                    group = group,
+                    onClick = { onProjectClick(project) }
+                )
             }
         }
     }
@@ -804,37 +809,51 @@ fun ProjectCard(
 }
 
 @Composable
-fun ProjectDetailScreen(navController: NavHostController, project: Project, userId: Int, groupId: Int) {
+fun ProjectDetailScreen(navController: NavHostController, selectedProject: Project?, userId: Int, groupId: Int) {
+    // Menangani groupId yang bisa null
+    val effectiveGroupId = groupId ?: selectedProject?.groupId // Biarkan null jika keduanya null, hindari -1 sebagai default
     val context = LocalContext.current
-    val projectId = project.id ?: 0
+    val projectId = selectedProject?.id ?: 0 // Hindari !! untuk keamanan null
     val coroutineScope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<Task>() }
     var isLoading by remember { mutableStateOf(false) }
-    val backgroundColor = Background
+    val backgroundColor = Color(0xFFFFFBDA) // Latar belakang kuning muda
     val apiService = RetrofitInstance.api
     val groups = remember { mutableStateListOf<Group>() }
 
-    // Palet warna yang disesuaikan dengan tema kedua
-    val Background = Color(0xFFFFFBDA) // Latar belakang kuning muda
+    // Palet warna
     val Utama1 = Color(0xFFFFC278) // Oranye untuk tombol
     val Utama2 = Color(0xFFFFBB70) // Oranye cerah untuk elemen aktif
     val Utama3 = Color(0xFFED9455) // Oranye gelap untuk titik dan tanggal
     val Grey1 = Color(0xFFd1d1d1) // Abu-abu untuk teks sekunder
     val Grey2 = Color(0xFFEDF0F2) // Abu-abu sangat terang
 
-    // Fungsi untuk mengambil tugas
+    // Fungsi untuk mengambil tugas dengan penanganan groupId null
     fun fetchTasks() {
         coroutineScope.launch {
+            if (projectId == 0) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Project ID tidak valid", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
             isLoading = true
             try {
-                val response = apiService.getTask(userId, groupId, projectId).data
+                // Jika effectiveGroupId null, coba panggil API tanpa groupId atau dengan logika khusus
+                val response = if (effectiveGroupId == null) {
+                    apiService.getTaskWithoutGroup(userId, projectId).data // Asumsi ada endpoint alternatif
+                } else {
+                    apiService.getTask(userId, effectiveGroupId, projectId).data
+                }
                 tasks.clear()
                 tasks.addAll(response)
                 println("Tugas berhasil diambil: ${tasks.size} tugas untuk projectId: $projectId")
             } catch (e: Exception) {
                 e.printStackTrace()
-                Toast.makeText(context, "Gagal memuat tugas: ${e.message}", Toast.LENGTH_SHORT).show()
-            } finally {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Gagal memuat tugas: ${e.message ?: "Tidak ada detail error"}", Toast.LENGTH_SHORT).show()
+                }
+            }finally {
                 isLoading = false
             }
         }
@@ -858,8 +877,20 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
         fetchTasks()
     }
 
-    // Temukan grup berdasarkan groupId
-    val group = groups.find { it.id == groupId } ?: Group(id = -1, name = "Unknown", icon = "fas fa-users")
+    // Temukan grup berdasarkan effectiveGroupId, jika null gunakan default
+    val group = if (effectiveGroupId != null) {
+        groups.find { it.id == effectiveGroupId } ?: Group(id = -1, name = "No Group", icon = "fas fa-users")
+    } else {
+        Group(id = -1, name = "No Group", icon = "fas fa-users") // Default jika tidak ada group
+    }
+
+    // Lanjutkan rendering meskipun groupId null, asalkan selectedProject ada
+    if (selectedProject == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Data proyek tidak valid", color = Color.Gray)
+        }
+        return
+    }
 
     Box(
         modifier = Modifier
@@ -876,11 +907,11 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp,32.dp),
+                    .padding(24.dp, 32.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { navController.navigate("jadwal?groupId={groupId}&projectId={projectId}") } // Kembali ke halaman sebelumnya
+                    onClick = { navController.navigate("jadwal?groupId=$effectiveGroupId&projectId=$projectId") }
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ArrowBack,
@@ -916,7 +947,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                     .fillMaxWidth()
                     .padding(bottom = 24.dp)
                     .clickable {
-                        navController.navigate("add_todo/$userId/$groupId/$projectId")
+                        navController.navigate("add_todo/$userId/${effectiveGroupId ?: -1}/$projectId")
                     },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -935,7 +966,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
-                                text = project.name ?: "Tanpa Nama",
+                                text = selectedProject.name ?: "Tanpa Nama",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
@@ -946,7 +977,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Description: ${project.description ?: "Tidak ada deskripsi"}",
+                                text = "Description: ${selectedProject.description ?: "Tidak ada deskripsi"}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Grey1
                             )
@@ -969,7 +1000,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                 Spacer(modifier = Modifier.width(8.dp))
 
                                 Text(
-                                    text = formatDateRange(project.startDate, project.endDate),
+                                    text = formatDateRange(selectedProject.startDate, selectedProject.endDate),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Utama3,
                                     fontWeight = FontWeight.Medium
@@ -1009,7 +1040,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                         )
                         Row {
                             IconButton(onClick = {
-                                navController.navigate("add_todo/$userId/$groupId/$projectId")
+                                navController.navigate("add_todo/$userId/${effectiveGroupId ?: -1}/$projectId")
                             }) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
@@ -1018,29 +1049,38 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                 )
                             }
                             IconButton(onClick = {
-                                println("Mencoba menghapus proyek dengan userId: $userId, groupId: $groupId, projectId: $projectId")
+                                println("Mencoba menghapus proyek dengan userId: $userId, groupId: $effectiveGroupId, projectId: $projectId")
                                 coroutineScope.launch {
                                     try {
-                                        val response = apiService.deleteProject(userId, groupId, projectId)
+                                        val response = apiService.deleteProject(userId, projectId)
+
                                         if (response == Unit) {
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                            }
                                             navController.popBackStack()
-                                            Toast.makeText(context, "Proyek berhasil dihapus", Toast.LENGTH_SHORT).show()
                                         }
                                     } catch (e: HttpException) {
                                         when (e.code()) {
                                             403 -> {
-                                                println("HTTP 403 Forbidden: ${e.message()} - Kemungkinan groupId tidak sesuai")
-                                                Toast.makeText(
-                                                    context,
-                                                    "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
+                                                println("HTTP 403 Forbidden: ${e.message} - Kemungkinan groupId tidak sesuai")
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Akses ditolak: Anda tidak memiliki izin untuk menghapus proyek ini. GroupId mungkin tidak sesuai.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
                                             }
-                                            else -> Toast.makeText(context, "Gagal menghapus proyek: ${e.message()}", Toast.LENGTH_SHORT).show()
+                                            else -> withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Gagal memuat tugas: ${e.message ?: "Tidak ada detail error"}", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                         e.printStackTrace()
                                     } catch (e: Exception) {
-                                        Toast.makeText(context, "Gagal menghapus proyek: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Gagal memuat tugas: ${e.message ?: "Tidak ada detail error"}", Toast.LENGTH_SHORT).show()
+                                        }
                                         e.printStackTrace()
                                     }
                                 }
@@ -1123,14 +1163,14 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                         TaskCard(
                             task = task,
                             userId = userId,
-                            groupId = groupId,
+                            groupId = effectiveGroupId,
                             projectId = projectId,
                             navController = navController,
                             onStatusChange = { updatedTask ->
                                 coroutineScope.launch {
                                     try {
-                                        val response = apiService.updateTask(
-                                            userId, groupId, projectId, task.id!!, TaskRequest(
+                                        val response =
+                                            apiService.updateTask(userId, groupId, projectId, task.id!!, TaskRequest(
                                                 id = task.id,
                                                 name = task.name ?: "",
                                                 description = task.description,
@@ -1139,31 +1179,44 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
                                                 priority = task.priority ?: "Normal",
                                                 attachment = task.attachment,
                                                 status = updatedTask.status
-                                            )
-                                        )
+                                            ))
+
                                         if (response.isSuccessful) {
-                                            // Refresh daftar tugas setelah pembaruan berhasil
                                             fetchTasks()
-                                            Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Status tugas diperbarui!", Toast.LENGTH_SHORT).show()
+                                            }
                                         } else {
-                                            Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "Gagal memperbarui status: ${response.code()}", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Gagal memuat tugas: ${e.message ?: "Tidak ada detail error"}", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             },
                             onDeleteClick = {
-                                println("Mencoba menghapus tugas dengan userId: $userId, groupId: $groupId, projectId: $projectId, taskId: ${task.id}")
+                                println("Mencoba menghapus tugas dengan userId: $userId, groupId: $effectiveGroupId, projectId: $projectId, taskId: ${task.id}")
                                 coroutineScope.launch {
                                     try {
-                                        apiService.deleteTask(userId, groupId, projectId, task.id ?: 0)
-                                        fetchTasks() // Refresh daftar tugas setelah penghapusan
-                                        Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                        val response = (task.id ?: null)?.let {
+                                            apiService.deleteTask(userId, projectId,
+                                                it
+                                            )
+                                        }
+                                        fetchTasks()
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Tugas berhasil dihapus", Toast.LENGTH_SHORT).show()
+                                        }
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        Toast.makeText(context, "Gagal menghapus tugas: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Gagal memuat tugas: ${e.message ?: "Tidak ada detail error"}", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             }
@@ -1175,15 +1228,15 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 
         Button(
             onClick = {
-                if (userId != -1 && groupId != -1 && projectId != 0) {
-                    println("Navigasi ke add_task dengan userId: $userId, groupId: $groupId, projectId: $projectId")
-                    navController.navigate("add_task/$userId/$groupId/$projectId/-1")
+                if (userId != -1 && projectId != 0) {
+                    println("Navigasi ke add_task dengan userId: $userId, groupId: $effectiveGroupId, projectId: $projectId")
+                    navController.navigate("add_task/$userId/${effectiveGroupId ?: -1}/$projectId/-1")
                 } else {
-                    Toast.makeText(
-                        context,
-                        "Gagal menambah tugas: Parameter tidak valid (userId: $userId, groupId: $groupId, projectId: $projectId)",
-                        Toast.LENGTH_LONG
-                    ).show()
+                        Toast.makeText(
+                            context,
+                            "Gagal menambah tugas: Parameter tidak valid (userId: $userId, groupId: $effectiveGroupId, projectId: $projectId)",
+                            Toast.LENGTH_LONG
+                        ).show()
                 }
             },
             modifier = Modifier
@@ -1209,7 +1262,7 @@ fun ProjectDetailScreen(navController: NavHostController, project: Project, user
 fun TaskCard(
     task: Task,
     userId: Int,
-    groupId: Int,
+    groupId: Int?,
     projectId: Int,
     navController: NavHostController,
     onStatusChange: (Task) -> Unit,
