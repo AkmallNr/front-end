@@ -110,7 +110,7 @@ fun AddTodoScreen(
         coroutineScope.launch {
             try {
                 val response = RetrofitInstance.api.getGroups(currentUserId)
-                groups = response.data ?: emptyList()
+                groups = response.body()?.data ?: emptyList()
                 println("Fetched groups: $groups")
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -126,73 +126,75 @@ fun AddTodoScreen(
     }
 
     fun saveProject() {
-        // Validasi jika startDate atau endDate kosong
-        if (startDate.isEmpty() || endDate.isEmpty()) {
-            errorMessage = "Please select both start date and end date"
-            return
-        }
-
-        val start = sdf.parse(startDate)
-        val end = sdf.parse(endDate)
-        if (start != null && end != null && start > end) {
-            errorMessage = "Start date cannot be after end date"
-            return
-        }
-
-        // Pastikan userId tersedia
-        val userIdToSave = users.find { it.id == currentUserId }?.id
-        if (userIdToSave == null) {
-            errorMessage = "User not found for userId $currentUserId"
-            println("Error: User not found for userId $currentUserId")
-            return
-        }
-
-        val projectData = ProjectRequest(
-            name = projectName,
-            description = description,
-            startDate = startDate,
-            endDate = endDate,
-            groupId = selectedGroup?.id, // Nullable jika tidak ada grup
-            userId = userIdToSave // Tambahkan userId
-        )
-        val isiProject = mapOf(
-            "nama user" to (users.find { it.id == currentUserId }?.name ?: "Default Name"),
-            "taskgroup" to (selectedGroup?.name ?: "Tanpa Label"),
-            "projectName" to projectName,
-            "description" to description,
-            "startDate" to startDate,
-            "endDate" to endDate,
-            "groupId" to (selectedGroup?.id?.toString() ?: "null"),
-            "userId" to userIdToSave.toString()
-        )
-        println("Isi project: $isiProject")
-        println("Saving project with data: $projectData")
-
-        coroutineScope.launch {
-            try {
-                val response = if (projectId == null) {
-                        selectedGroup?.let {
-                            RetrofitInstance.api.addProjectToGroup(userIdToSave, it.id, projectData)
-                        } ?: throw IllegalStateException("Selected group is null unexpectedly")
-                } else {
-                    RetrofitInstance.api.updateProject(userIdToSave, selectedGroup?.id, projectId, projectData)
+        // Validasi semua field
+        when {
+            projectName.isEmpty() -> errorMessage = "Project name cannot be empty"
+            startDate.isEmpty() -> errorMessage = "Start date cannot be empty"
+            endDate.isEmpty() -> errorMessage = "End date cannot be empty"
+            else -> {
+                val start = sdf.parse(startDate)
+                val end = sdf.parse(endDate)
+                if (start != null && end != null && start > end) {
+                    errorMessage = "Start date cannot be after end date"
+                    return
                 }
-                if (response.isSuccessful) {
-                    println("Project saved successfully!")
-                    showSuccessDialog = true
-                    showProjectModal = false
-                } else {
-                    val error = response.errorBody()?.string()
-                    errorMessage = when (response.code()) {
-                        403 -> "Akses ditolak: Anda tidak memiliki izin untuk mengedit proyek di grup ini."
-                        else -> "Gagal menyimpan proyek: $error"
+
+                // Pastikan userId tersedia
+                val userIdToSave = users.find { it.id == currentUserId }?.id
+                if (userIdToSave == null) {
+                    errorMessage = "User not found for userId $currentUserId"
+                    println("Error: User not found for userId $currentUserId")
+                    return
+                }
+
+                val projectData = ProjectRequest(
+                    name = projectName,
+                    description = description,
+                    startDate = startDate,
+                    endDate = endDate,
+                    groupId = selectedGroup?.id, // Nullable jika tidak ada grup
+                    userId = userIdToSave // Tambahkan userId
+                )
+                val isiProject = mapOf(
+                    "nama user" to (users.find { it.id == currentUserId }?.name ?: "Default Name"),
+                    "taskgroup" to (selectedGroup?.name ?: "Tanpa Label"),
+                    "projectName" to projectName,
+                    "description" to description,
+                    "startDate" to startDate,
+                    "endDate" to endDate,
+                    "groupId" to (selectedGroup?.id?.toString() ?: "null"),
+                    "userId" to userIdToSave.toString()
+                )
+                println("Isi project: $isiProject")
+                println("Saving project with data: $projectData")
+
+                coroutineScope.launch {
+                    try {
+                        val response = if (projectId == null) {
+                            selectedGroup?.let {
+                                RetrofitInstance.api.addProjectToGroup(userIdToSave, it.id, projectData)
+                            } ?: throw IllegalStateException("Selected group is null unexpectedly")
+                        } else {
+                            RetrofitInstance.api.updateProject(userIdToSave, selectedGroup?.id, projectId, projectData)
+                        }
+                        if (response.isSuccessful) {
+                            println("Project saved successfully!")
+                            showSuccessDialog = true
+                            showProjectModal = false
+                        } else {
+                            val error = response.errorBody()?.string()
+                            errorMessage = when (response.code()) {
+                                403 -> "Akses ditolak: Anda tidak memiliki izin untuk mengedit proyek di grup ini."
+                                else -> "Gagal menyimpan proyek: $error"
+                            }
+                            println("Gagal menyimpan proyek: $error")
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        errorMessage = "Error menyimpan proyek: ${e.message}"
+                        println("Error menyimpan proyek: ${e.message}")
                     }
-                    println("Gagal menyimpan proyek: $error")
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                errorMessage = "Error menyimpan proyek: ${e.message}"
-                println("Error menyimpan proyek: ${e.message}")
             }
         }
     }

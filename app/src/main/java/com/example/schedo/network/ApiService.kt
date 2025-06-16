@@ -62,7 +62,7 @@ interface ApiService {
     suspend fun getProjectsByGroup(
         @Path("userId") userId: Int,
         @Path("groupId") groupId: Int
-    ): ProjectResponse
+    ): Response<ProjectResponse>
 
 //    @POST("users")
 //    suspend fun createUser(@Body user: User): Response<User>
@@ -76,7 +76,7 @@ interface ApiService {
     @GET("users/{userId}/groups")
     suspend fun getGroups(
         @Path("userId") userId: Int
-    ): GroupResponse
+    ): Response<GroupResponse>
 
     @DELETE("users/{userId}/groups/{groupId}")
     suspend fun deleteGroup(
@@ -187,7 +187,7 @@ interface ApiService {
         @Path("userId") userId: Int,
         @Path("scheduleId") scheduleId: Int,
         @Body schedule: Schedule
-    )
+    ): Response<Schedule>
 
     @POST("users/{userId}/projects")
     suspend fun addProjectToUser(
@@ -291,6 +291,7 @@ data class ProjectRequest(
     val groupId: Int?, // Add groupId to allow updating the group
     val userId: Int // Tambahkan userId yang wajib
 )
+
 
 data class TaskRequest(
     val id: Int? = null,

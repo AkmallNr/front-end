@@ -35,7 +35,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-<!--        <receiver android:name="com.example.schedo.receiver.AlarmReceiver" />-->
+        <receiver android:name=".receiver.ScheduleReminderReceiver" android:exported="false"/>
         <receiver android:name="com.example.schedo.receiver.AlarmReceiver"
             android:exported="false">
             <intent-filter>

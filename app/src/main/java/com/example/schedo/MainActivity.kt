@@ -60,6 +60,20 @@ class MainActivity : ComponentActivity() {
                 }
                 notificationManager.createNotificationChannel(channel)
             }
+
+            if (notificationManager.getNotificationChannel("schedule_reminder_channel") == null) {
+                val channel2 = NotificationChannel(
+                    "schedule_reminder_channel",
+                    "Schedule Reminders",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Channel untuk notifikasi schedule reminders"
+                    enableLights(true)
+                    enableVibration(true)
+                    setShowBadge(true)
+                }
+                notificationManager.createNotificationChannel(channel2)
+            }
         }
     }
 }

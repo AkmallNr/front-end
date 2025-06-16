@@ -164,7 +164,7 @@ fun UserManagementScreen(navController: NavHostController) {
 
                     // Mengambil data grup
                     val groupsResponse = RetrofitInstance.api.getGroups(userId)
-                    userGroups = groupsResponse.data ?: emptyList()
+                    userGroups = groupsResponse.body()?.data ?: emptyList()
 
                     if (user == null) {
                         errorMessage = "User tidak ditemukan untuk userId: $userId"
@@ -438,7 +438,7 @@ fun UserManagementScreen(navController: NavHostController) {
                         try {
                             // Refresh group list from server after update
                             val groupsResponse = RetrofitInstance.api.getGroups(userId)
-                            userGroups = groupsResponse.data ?: emptyList()
+                            userGroups = groupsResponse.body()?.data ?: emptyList()
                             Log.d("GroupOptionsDialog", "Refreshed group list after update: ${userGroups.size} groups")
                         } catch (e: Exception) {
                             errorMessage = "Gagal memperbarui grup: ${e.message}"
@@ -453,7 +453,7 @@ fun UserManagementScreen(navController: NavHostController) {
                         try {
                             selectedGroup!!.id?.let { RetrofitInstance.api.deleteGroup(userId, it) }
                             val groupsResponse = RetrofitInstance.api.getGroups(userId)
-                            userGroups = groupsResponse.data ?: emptyList()
+                            userGroups = groupsResponse.body()?.data ?: emptyList()
                             Log.d("GroupOptionsDialog", "Refreshed group list after delete: ${userGroups.size} groups")
                         } catch (e: Exception) {
                             errorMessage = "Gagal menghapus grup: ${e.message}"

@@ -140,8 +140,10 @@ fun AppNavHost(
                                 try {
                                     val projects = RetrofitInstance.api
                                         .getProjectsByGroup(receivedUserId, receivedGroupId)
-                                        .data
-                                    project = projects.find { it.id == receivedProjectId }
+                                        .body()?.data
+                                    if (projects != null) {
+                                        project = projects.find { it.id == receivedProjectId }
+                                    }
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 } finally {
@@ -291,8 +293,10 @@ fun AppNavHost(
                             try {
                                 val projects = RetrofitInstance.api
                                     .getProjectsByGroup(userId, groupId)
-                                    .data
-                                project = projects.find { it.id == projectId }
+                                    .body()?.data
+                                if (projects != null) {
+                                    project = projects.find { it.id == projectId }
+                                }
                             } catch (e: Exception) {
                                 e.printStackTrace()
                                 Toast.makeText(context, "Failed to load project: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -366,8 +370,10 @@ fun AddTodoModalBottomSheet(
                 try {
                     val projects = RetrofitInstance.api
                         .getProjectsByGroup(userId, groupId)
-                        .data
-                    project = projects.find { it.id == projectId }
+                        .body()?.data
+                    if (projects != null) {
+                        project = projects.find { it.id == projectId }
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 } finally {

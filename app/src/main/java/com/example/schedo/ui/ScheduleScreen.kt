@@ -86,12 +86,10 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         return
     }
 
-    // State untuk tanggal saat ini dan refresh trigger
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
     var schedules = remember { mutableStateListOf<Schedule>() }
-    var refreshTrigger by remember { mutableStateOf(0) } // Trigger untuk refresh data
+    var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Formatter untuk nama hari dan bulan
     val dayFormat = SimpleDateFormat("EEEE", Locale("id", "ID"))
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("id", "ID"))
     val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
@@ -100,7 +98,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val coroutineScope = rememberCoroutineScope()
     val projects = remember { mutableStateListOf<Project>() }
     var selectedProject by remember { mutableStateOf<Project?>(null) }
-    val groups = remember { mutableStateListOf<Group>() }
+    var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var selectedGroupId by remember { mutableStateOf(groupId) }
     var isLoading by remember { mutableStateOf(false) }
     val apiService = RetrofitInstance.api
@@ -110,10 +108,11 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
     val currentDay = currentDate.get(Calendar.DAY_OF_MONTH)
     var selectedDayIndex by remember { mutableStateOf(currentDay - 1) }
 
+    val monthStart = remember { Calendar.getInstance().apply { time = currentDate.time; set(Calendar.DAY_OF_MONTH, 1) } }
+
     val backgroundColor = Background
     val selectedTabColor = Utama2
 
-    // Fungsi untuk mengambil jadwal dari server
     suspend fun fetchSchedulesFromServer() {
         try {
             isLoading = true
@@ -158,7 +157,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         }
     }
 
-    // Fetch schedules saat tanggal berubah atau refreshTrigger berubah
     LaunchedEffect(currentDate, refreshTrigger) {
         fetchSchedulesFromServer()
     }
@@ -167,9 +165,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = apiService.getGroups(userId).data
-                groups.clear()
-                groups.addAll(response)
+                val response = apiService.getGroups(userId)
+                groups = response.body()?.data ?: emptyList()
                 println("Grup berhasil diambil: ${groups.size} grup untuk userId: $userId")
             } catch (e: Exception) {
                 println("Gagal mengambil grup untuk userId: $userId - Error: ${e.message}")
@@ -185,8 +182,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
             isLoading = true
             try {
                 val response = apiService.getProjectsByUser(userId)
-                println("Respon API mentah untuk userId: $userId - ${response.body()}") // Log respons lengkap
-                val data = response.body()?.data // Pastikan data diambil dari response.body()
+                println("Respon API mentah untuk userId: $userId - ${response.body()}")
+                val data = response.body()?.data
                 if (data != null) {
                     projects.clear()
                     projects.addAll(data)
@@ -219,7 +216,7 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 56.dp), // Padding dikurangi dari 72dp menjadi 56dp
+                .padding(bottom = 56.dp),
             verticalArrangement = Arrangement.Top
         ) {
             if (selectedProject == null) {
@@ -275,14 +272,14 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                 }
 
                 when (selectedTab) {
-                    0 ->ProjectContentWithData(
+                    0 -> ProjectContentWithData(
                         navController = navController,
                         onProjectClick = { project -> selectedProject = project },
                         onEditClick = { project ->
                             showAddTodo = true
                         },
                         userId = userId,
-                        groupId = selectedGroupId, // Gunakan selectedGroupId sebagai default
+                        groupId = selectedGroupId,
                         groups = groups,
                         onShowAddTodo = { showAddTodo = it }
                     )
@@ -313,7 +310,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                                 }
                             }
 
-                            val monthStart = Calendar.getInstance().apply { time = currentDate.time; set(Calendar.DAY_OF_MONTH, 1) }
                             val daysInMonth = currentDate.getActualMaximum(Calendar.DAY_OF_MONTH)
                             val lazyRowState = rememberLazyListState()
                             LaunchedEffect(currentDate.timeInMillis) {
@@ -333,9 +329,14 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                                     val dayCalendar = Calendar.getInstance().apply { time = monthStart.time; add(Calendar.DAY_OF_YEAR, index) }
                                     val dayOfMonth = dayCalendar.get(Calendar.DAY_OF_MONTH)
                                     val dayName = when (dayCalendar.get(Calendar.DAY_OF_WEEK)) {
-                                        Calendar.MONDAY -> "Sen"; Calendar.TUESDAY -> "Sel"; Calendar.WEDNESDAY -> "Rab"
-                                        Calendar.THURSDAY -> "Kam"; Calendar.FRIDAY -> "Jum"; Calendar.SATURDAY -> "Sab"
-                                        Calendar.SUNDAY -> "Min"; else -> ""
+                                        Calendar.MONDAY -> "Sen"
+                                        Calendar.TUESDAY -> "Sel"
+                                        Calendar.WEDNESDAY -> "Rab"
+                                        Calendar.THURSDAY -> "Kam"
+                                        Calendar.FRIDAY -> "Jum"
+                                        Calendar.SATURDAY -> "Sab"
+                                        Calendar.SUNDAY -> "Min"
+                                        else -> ""
                                     }
                                     val isSelected = selectedDayIndex == index
                                     Card(
@@ -400,7 +401,12 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
+                                                .padding(vertical = 4.dp)
+                                                .clickable {
+                                                    selectedSchedule = schedule
+                                                    showAddSchedule = true
+                                                    Log.d("ScheduleScreen", "Selected schedule with id ${schedule.id} for editing")
+                                                },
                                             shape = RoundedCornerShape(12.dp),
                                             colors = CardDefaults.cardColors(containerColor = Color.White),
                                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -425,6 +431,8 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                                                         val endTimeParts = schedule.endTime.split(" ")
                                                         val startTime = if (startTimeParts.size > 1) startTimeParts[1] else schedule.startTime
                                                         val endTime = if (endTimeParts.size > 1) endTimeParts[1] else schedule.endTime
+                                                        val startTimedate = if (startTimeParts.size > 1) startTimeParts[0] else schedule.startTime
+                                                        val endTimedate = if (endTimeParts.size > 1) endTimeParts[0] else schedule.endTime
                                                         "$startTime - $endTime"
                                                     } catch (e: Exception) {
                                                         "${schedule.startTime} - ${schedule.endTime}"
@@ -438,7 +446,6 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
                             }
                         }
 
-                        // Tombol Tambah Jadwal
                         Button(
                             onClick = {
                                 showAddSchedule = true
@@ -487,19 +494,31 @@ fun ScheduleScreen(navController: NavHostController, groupId: Int, projectId: In
         }
 
         if (showAddSchedule || selectedSchedule != null) {
-            AddScheduleScreen(
-                navController = navController,
-                userId = userId,
-                groupId = groupId,
-                currentWeekStart = currentWeekStart,
-                onDismiss = { showAddSchedule = false; selectedSchedule = null },
-                scheduleToEdit = selectedSchedule,
-                onScheduleAdded = {
-                    // Memaksa refresh dengan mengubah refreshTrigger
-                    refreshTrigger++
-                    Log.d("ScheduleScreen", "Schedule added, refreshing data with trigger $refreshTrigger")
-                }
-            )
+            val selectedDate = Calendar.getInstance().apply {
+                time = monthStart.time
+                add(Calendar.DAY_OF_YEAR, selectedDayIndex)
+            }
+            ModalBottomSheet(
+                onDismissRequest = { showAddSchedule = false; selectedSchedule = null },
+                sheetState = rememberModalBottomSheetState(),
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrimColor = Color.Black.copy(alpha = 0.5f)
+            ) {
+                AddScheduleScreen(
+                    navController = navController,
+                    userId = userId,
+                    groupId = groupId,
+                    currentWeekStart = currentWeekStart,
+                    selectedDate = selectedDate,
+                    onDismiss = { showAddSchedule = false; selectedSchedule = null },
+                    scheduleToEdit = selectedSchedule,
+                    onScheduleAdded = {
+                        refreshTrigger++
+                        Log.d("ScheduleScreen", "Schedule added, refreshing data with trigger $refreshTrigger")
+                    }
+                )
+            }
         }
     }
 }
@@ -819,7 +838,7 @@ fun ProjectDetailScreen(navController: NavHostController, selectedProject: Proje
     var isLoading by remember { mutableStateOf(false) }
     val backgroundColor = Color(0xFFFFFBDA) // Latar belakang kuning muda
     val apiService = RetrofitInstance.api
-    val groups = remember { mutableStateListOf<Group>() }
+    var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
 
     // Palet warna
     val Utama1 = Color(0xFFFFC278) // Oranye untuk tombol
@@ -862,9 +881,8 @@ fun ProjectDetailScreen(navController: NavHostController, selectedProject: Proje
     // Ambil data grup untuk mendapatkan ikon grup
     LaunchedEffect(Unit) {
         try {
-            val response = apiService.getGroups(userId).data
-            groups.clear()
-            groups.addAll(response)
+            val response = apiService.getGroups(userId)
+            groups = response.body()?.data ?: emptyList()
             println("Grup berhasil diambil: ${groups.size} grup untuk userId: $userId")
         } catch (e: Exception) {
             println("Gagal mengambil grup untuk userId: $userId - Error: ${e.message}")

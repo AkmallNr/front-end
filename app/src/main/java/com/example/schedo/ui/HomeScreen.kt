@@ -107,7 +107,7 @@ fun logout(
 @Composable
 fun WeeklyTasksBarChart(data: WeeklyCompletedTasksData) {
     val daysOrder = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-    val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val tasksCount = daysOrder.map { data.tasks[it] ?: 0 }
     val maxTasks = (tasksCount.maxOrNull()?.toFloat() ?: 1f).let { if (it == 0f) 1f else it }
 
@@ -315,9 +315,11 @@ fun HomeScreen(navController: NavHostController) {
         coroutineScope.launch {
             isLoading = true
             try {
-                val response = RetrofitInstance.api.getGroups(userId).data
+                val response = RetrofitInstance.api.getGroups(userId).body()?.data
                 groups.clear()
-                groups.addAll(response)
+                if (response != null) {
+                    groups.addAll(response)
+                }
                 Log.d("HomeScreen", "Groups fetched successfully: ${groups.size} groups")
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Failed to fetch groups: ${e.message}")

@@ -72,7 +72,14 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
-// Fungsi utilitas untuk upload file ke Google Drive
+// Data class untuk membedakan lampiran yang sudah ada (URL) dan lampiran baru (Uri lokal)
+data class AttachmentItem(
+    val name: String,
+    val uri: Uri? = null, // Uri lokal untuk lampiran baru
+    val url: String? = null // URL untuk lampiran yang sudah diunggah
+)
+
+// Fungsi utilitas untuk upload file ke Google Drive (tetap sama)
 suspend fun uploadFileToDrive(
     context: Context,
     fileUri: Uri,
@@ -215,7 +222,7 @@ fun AddTaskScreen(
     var note by remember { mutableStateOf(task?.description ?: "") }
     var reminder by remember { mutableStateOf(task?.reminder ?: "Tidak") }
     var priority by remember { mutableStateOf(task?.priority ?: "Normal") }
-    var attachmentList by remember { mutableStateOf<List<Pair<String, Uri>>?>(null) }
+    var attachmentList by remember { mutableStateOf<List<AttachmentItem>?>(null) }
     var selectedQuote by remember { mutableStateOf(quote) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
@@ -312,8 +319,14 @@ fun AddTaskScreen(
         uri?.let {
             android.util.Log.d("AttachmentDialog", "File dipilih: $uri")
             val fileName = getFileNameFromUri(context, it) ?: "UnnamedFile_${System.currentTimeMillis()}"
-            attachmentList = (attachmentList ?: emptyList()) + listOf(fileName to it)
-            android.util.Log.d("AttachmentDialog", "Lampiran ditambahkan: $fileName")
+            // Hindari duplikasi dengan memeriksa nama file
+            if (attachmentList?.any { item -> item.name == fileName && item.uri != null } != true) {
+                attachmentList = (attachmentList ?: emptyList()) + AttachmentItem(name = fileName, uri = it)
+                android.util.Log.d("AttachmentDialog", "Lampiran ditambahkan: $fileName")
+            } else {
+                android.util.Log.d("AttachmentDialog", "Lampiran sudah ada: $fileName")
+                Toast.makeText(context, "Lampiran dengan nama $fileName sudah ada", Toast.LENGTH_SHORT).show()
+            }
         } ?: android.util.Log.d("AttachmentDialog", "URI null, tidak ada file yang dipilih")
     }
 
@@ -356,7 +369,7 @@ fun AddTaskScreen(
                     }
                     taskToEdit.attachment?.let { urls ->
                         attachmentList = urls.map { url ->
-                            Pair(getFileNameFromUrl(url), Uri.parse(url))
+                            AttachmentItem(name = getFileNameFromUrl(url), url = url)
                         }
                     }
                     android.util.Log.d("AddTaskScreen", "Tugas dimuat: $taskToEdit, Lampiran: ${taskToEdit.attachment}")
@@ -492,7 +505,7 @@ fun AddTaskScreen(
 
             item {
                 if (!attachmentList.isNullOrEmpty()) {
-                    val displayAttachments = attachmentList!!.map { it.first to it.second.toString() }
+                    val displayAttachments = attachmentList!!.map { it.name to (it.url ?: it.uri.toString()) }
                     AttachmentSection(attachmentList = displayAttachments, onClick = { showAttachmentDialog = true })
                 }
             }
@@ -544,7 +557,6 @@ fun AddTaskScreen(
                             return@Button
                         }
 
-                        // Validasi startDate dan endDate
                         if (selectedDeadlineDateMillis == null) {
                             Toast.makeText(context, "Batas waktu harus diatur", Toast.LENGTH_SHORT).show()
                             return@Button
@@ -567,80 +579,69 @@ fun AddTaskScreen(
                         println("user id : $userId, group id : $groupId, project id $projectId")
 
                         val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
-                        val taskRequest = TaskRequest(
-                            id = task?.id,
-                            name = taskTitle.text.trim(),
-                            description = note.trim(),
-                            deadline = selectedDeadlineDateMillis?.let { dateFormat.format(Date(it)) } ?: "",
-                            reminder = if (reminder == "Tidak") "Tidak" else selectedReminderDateMillis?.let { dateFormat.format(Date(it)) },
-                            priority = priority,
-                            attachment = attachmentList?.map { it.first }?.filter { it.isNotBlank() },
-                            status = task?.status ?: false,
-                            quoteId = selectedQuote?.id
-                        )
-
                         scope.launch {
-                            android.util.Log.d("AddTaskScreen", "Di dalam coroutine scope")
                             uploadedAttachments.clear()
-                            android.util.Log.d("AddTaskScreen", "Jumlah lampiran: ${attachmentList?.size ?: 0}")
-                            attachmentList?.forEach { (fileName, uri) ->
-                                android.util.Log.d("AddTaskScreen", "Mengunggah: $fileName dengan URI: $uri")
-                                if (isUrl(fileName) || uri.toString().startsWith("https://") || uri.toString().startsWith("http://")) {
-                                    val link = if (isUrl(fileName)) fileName else uri.toString()
-                                    try {
-                                        val linkRequestBody = link.toRequestBody("text/plain".toMediaTypeOrNull())
-                                        val response = apiService.uploadFile(file = null, link = linkRequestBody)
-                                        if (response.isSuccessful && response.body()?.success == true) {
-                                            response.body()?.data?.link?.let { uploadedAttachments.add(it) }
-                                            android.util.Log.d("AddTaskScreen", "Link berhasil diunggah: $link")
-                                        } else {
-                                            val errorMessage = "Gagal mengunggah link: ${response.code()} - ${response.message()}"
-                                            android.util.Log.e("AddTaskScreen", errorMessage)
-                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
-                                        }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("AddTaskScreen", "Error mengunggah link: ${e.message}", e)
-                                        Toast.makeText(context, "Error mengunggah link: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                } else {
-                                    try {
-                                        val contentResolver = context.contentResolver
-                                        val inputStream = contentResolver.openInputStream(uri)
-                                        if (inputStream == null) {
-                                            android.util.Log.e("AddTaskScreen", "Gagal membuka input stream untuk URI: $uri")
-                                            Toast.makeText(context, "Gagal membuka file: $fileName", Toast.LENGTH_LONG).show()
-                                            return@forEach
-                                        }
-
-                                        val tempFile = JavaFile(context.cacheDir, fileName)
-                                        inputStream.use { input ->
-                                            tempFile.outputStream().use { output ->
-                                                input.copyTo(output)
+                            attachmentList?.forEach { item ->
+                                if (item.url != null) {
+                                    // Lampiran sudah ada di server, masukkan URL langsung
+                                    uploadedAttachments.add(item.url)
+                                    android.util.Log.d("AddTaskScreen", "Menggunakan URL lampiran yang sudah ada: ${item.url}")
+                                } else if (item.uri != null) {
+                                    // Lampiran baru, unggah ke server
+                                    val fileName = item.name
+                                    if (isUrl(fileName) || item.uri.toString().startsWith("https://") || item.uri.toString().startsWith("http://")) {
+                                        val link = if (isUrl(fileName)) fileName else item.uri.toString()
+                                        try {
+                                            val linkRequestBody = link.toRequestBody("text/plain".toMediaTypeOrNull())
+                                            val response = apiService.uploadFile(file = null, link = linkRequestBody)
+                                            if (response.isSuccessful && response.body()?.success == true) {
+                                                response.body()?.data?.link?.let { uploadedAttachments.add(it) }
+                                            } else {
+                                                val errorMessage = "Gagal mengunggah link: ${response.code()} - ${response.message()}"
+                                                android.util.Log.e("AddTaskScreen", errorMessage)
+                                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                                             }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("AddTaskScreen", "Error mengunggah link: ${e.message}", e)
+                                            Toast.makeText(context, "Error mengunggah link: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
+                                    } else {
+                                        try {
+                                            val contentResolver = context.contentResolver
+                                            val inputStream = contentResolver.openInputStream(item.uri)
+                                            if (inputStream == null) {
+                                                android.util.Log.e("AddTaskScreen", "Gagal membuka input stream untuk URI: ${item.uri}")
+                                                Toast.makeText(context, "Gagal membuka file: $fileName", Toast.LENGTH_LONG).show()
+                                                return@forEach
+                                            }
 
-                                        val requestFile = tempFile.asRequestBody(getMimeType(fileName)?.toMediaTypeOrNull())
-                                        val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
-                                        val response = apiService.uploadFile(file = filePart, link = null)
+                                            val tempFile = JavaFile(context.cacheDir, fileName)
+                                            inputStream.use { input ->
+                                                tempFile.outputStream().use { output ->
+                                                    input.copyTo(output)
+                                                }
+                                            }
 
-                                        if (response.isSuccessful && response.body()?.success == true) {
-                                            response.body()?.data?.file_url?.let { uploadedAttachments.add(it) }
-                                            android.util.Log.d("AddTaskScreen", "File berhasil diunggah: $fileName, URL: ${response.body()?.data?.file_url}")
-                                        } else {
-                                            val errorMessage = "Gagal mengunggah file: ${response.code()} - ${response.message()}"
-                                            android.util.Log.e("AddTaskScreen", errorMessage)
-                                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                            val requestFile = tempFile.asRequestBody(getMimeType(fileName)?.toMediaTypeOrNull())
+                                            val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
+                                            val response = apiService.uploadFile(file = filePart, link = null)
+
+                                            if (response.isSuccessful && response.body()?.success == true) {
+                                                response.body()?.data?.file_url?.let { uploadedAttachments.add(it) }
+                                            } else {
+                                                val errorMessage = "Gagal mengunggah file: ${response.code()} - ${response.message()}"
+                                                android.util.Log.e("AddTaskScreen", errorMessage)
+                                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                            }
+                                            tempFile.delete()
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("AddTaskScreen", "Error mengunggah file: ${e.message}", e)
+                                            Toast.makeText(context, "Error mengunggah file: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
-                                        tempFile.delete()
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("AddTaskScreen", "Error mengunggah file: ${e.message}", e)
-                                        Toast.makeText(context, "Error mengunggah file: ${e.message}", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
 
-                            android.util.Log.d("AddTaskScreen", "Semua lampiran selesai diunggah: $uploadedAttachments")
-                            val dateFormat = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                             val taskRequest = TaskRequest(
                                 id = taskId,
                                 name = taskTitle.text.trim(),
@@ -684,6 +685,60 @@ fun AddTaskScreen(
             }
         }
 
+        // Dialog untuk Catatan
+        if (showNoteDialog) {
+            var noteInput by remember { mutableStateOf(note) }
+            AlertDialog(
+                onDismissRequest = { showNoteDialog = false },
+                title = { Text("Tambah Catatan", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = noteInput,
+                        onValueChange = { noteInput = it },
+                        label = { Text("Masukkan catatan", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        maxLines = 5,
+                        textStyle = TextStyle(fontWeight = FontWeight.Bold)
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            note = noteInput
+                            showNoteDialog = false
+                        },
+                        enabled = true,
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                    ) {
+                        Text("Simpan", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = { showNoteDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = Utama2)
+                    ) {
+                        Text("Batal", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
+            )
+        }
+
+        // Dialog untuk Lampiran
+        if (showAttachmentDialog) {
+            AttachmentDialogContent(
+                attachmentList = attachmentList,
+                onDismiss = { showAttachmentDialog = false },
+                onUpdate = { updatedList ->
+                    attachmentList = updatedList
+                },
+                filePickerLauncher = filePickerLauncher,
+                context = context
+            )
+        }
+
         if (showDeadlineDatePicker) {
             DatePickerDialog(
                 onDismissRequest = { showDeadlineDatePicker = false },
@@ -692,9 +747,9 @@ fun AddTaskScreen(
                         deadlineDatePickerState.selectedDateMillis?.let { millis ->
                             val calendar = Calendar.getInstance()
                             calendar.timeInMillis = millis
-                            selectedDeadlineDateMillis = millis // Simpan tanggal dulu
+                            selectedDeadlineDateMillis = millis
                             showDeadlineDatePicker = false
-                            showDeadlineTimePicker = true // Buka TimePicker
+                            showDeadlineTimePicker = true
                         }
                     }) {
                         Text("Pilih Jam")
@@ -755,7 +810,7 @@ fun AddTaskScreen(
             DatePickerDialog(
                 onDismissRequest = {
                     showReminderDatePicker = false
-                    if (reminder == "Setel Pengingat") reminder = "Tidak" // Kembali ke "Tidak" jika dibatalkan
+                    if (reminder == "Setel Pengingat") reminder = "Tidak"
                 },
                 confirmButton = {
                     Button(
@@ -798,7 +853,6 @@ fun AddTaskScreen(
                 confirmButton = {
                     Button(onClick = {
                         val calendar = Calendar.getInstance()
-                        // Pastikan selectedReminderDateMillis tidak null dengan fallback ke currentTimeMillis
                         val dateMillis = selectedReminderDateMillis ?: currentTimeMillis
                         calendar.timeInMillis = dateMillis
                         calendar.set(Calendar.HOUR_OF_DAY, reminderTimePickerState.hour)
@@ -807,7 +861,7 @@ fun AddTaskScreen(
 
                         when {
                             newReminderMillis < currentTimeMillis -> {
-                                Toast.makeText(context, "Jam tidak boleh kurang dari 07:49 PM", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Jam tidak boleh kurang dari 06:08 PM", Toast.LENGTH_SHORT).show()
                             }
                             selectedDeadlineDateMillis != null && newReminderMillis > selectedDeadlineDateMillis!! -> {
                                 Toast.makeText(context, "Pengingat tidak boleh melebihi batas waktu", Toast.LENGTH_SHORT).show()
@@ -815,7 +869,7 @@ fun AddTaskScreen(
                             else -> {
                                 selectedReminderDateMillis = newReminderMillis
                                 reminder = SimpleDateFormat("yyyy/MM/dd HH:mm").format(Date(newReminderMillis))
-                                showReminderTimePicker = false // Tutup dialog setelah sukses
+                                showReminderTimePicker = false
 
                                 scheduleReminderNotification(
                                     context = context,
@@ -826,9 +880,8 @@ fun AddTaskScreen(
                                 )
                             }
                         }
-                        // Pastikan dialog ditutup meskipun validasi gagal (opsional)
                         if (newReminderMillis < currentTimeMillis || (selectedDeadlineDateMillis != null && newReminderMillis > selectedDeadlineDateMillis!!)) {
-                            showReminderTimePicker = false // Tutup dialog setelah menampilkan toast
+                            showReminderTimePicker = false
                         }
                     }) {
                         Text("Simpan")
@@ -852,14 +905,14 @@ fun AddTaskScreen(
     }
 }
 
-// Fungsi scheduleReminderNotification tetap sama seperti sebelumnya
+// Fungsi scheduleReminderNotification tetap sama
 fun scheduleReminderNotification(context: Context, reminderTimeMillis: Long, title: String, message: String, quote: String) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(context, AlarmReceiver::class.java).apply {
         action = "com.example.schedo.REMINDER_ACTION"
         putExtra("title", title)
         putExtra("message", message)
-        putExtra("quote", quote) // Tambahkan quote ke Intent
+        putExtra("quote", quote)
     }
     val pendingIntent = PendingIntent.getBroadcast(
         context,
@@ -1692,9 +1745,9 @@ fun EnhancedTaskOptionRow(
 
 @Composable
 fun AttachmentDialogContent(
-    attachmentList: List<Pair<String, Uri>>?,
+    attachmentList: List<AttachmentItem>?,
     onDismiss: () -> Unit,
-    onUpdate: (List<Pair<String, Uri>>?) -> Unit,
+    onUpdate: (List<AttachmentItem>?) -> Unit,
     filePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
     context: Context
 ) {
@@ -1810,12 +1863,17 @@ fun AttachmentDialogContent(
                 Button(
                     onClick = {
                         if (tempAttachment.isNotEmpty()) {
-                            currentList = currentList + (getFileNameFromUrl(tempAttachment) to Uri.parse(tempAttachment))
-                            onUpdate(currentList)
-                            tempAttachment = ""
-                            isLink = false
-                            isPhoto = false
-                            isPdf = false
+                            // Hindari duplikasi URL
+                            if (currentList.any { it.url == tempAttachment }) {
+                                Toast.makeText(context, "URL sudah ada", Toast.LENGTH_SHORT).show()
+                            } else {
+                                currentList = currentList + AttachmentItem(name = getFileNameFromUrl(tempAttachment), url = tempAttachment)
+                                onUpdate(currentList)
+                                tempAttachment = ""
+                                isLink = false
+                                isPhoto = false
+                                isPdf = false
+                            }
                         }
                     },
                     enabled = tempAttachment.isNotEmpty() || (isPhoto || isPdf),
@@ -1831,18 +1889,21 @@ fun AttachmentDialogContent(
                 if (currentList.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Lampiran saat ini:", fontWeight = FontWeight.Bold)
-                    currentList.forEach { (attachmentName, uri) ->
+                    currentList.forEach { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     try {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uri, getMimeType(attachmentName))
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        val uri = if (item.url != null) Uri.parse(item.url) else item.uri
+                                        if (uri != null) {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                setDataAndType(uri, getMimeType(item.name))
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(intent)
                                         }
-                                        context.startActivity(intent)
                                     } catch (e: Exception) {
                                         e.printStackTrace()
                                         Toast.makeText(context, "Tidak ada aplikasi yang dapat membuka file ini", Toast.LENGTH_SHORT).show()
@@ -1861,26 +1922,26 @@ fun AttachmentDialogContent(
                             ) {
                                 Icon(
                                     imageVector = when {
-                                        isUrl(attachmentName) -> Icons.Default.Link
-                                        attachmentName.endsWith(".pdf") -> Icons.Default.PictureAsPdf
-                                        attachmentName.endsWith(".png") || attachmentName.endsWith(".jpg") || attachmentName.endsWith(".jpeg") -> Icons.Default.Image
+                                        item.url != null -> Icons.Default.Link
+                                        item.name.endsWith(".pdf") -> Icons.Default.PictureAsPdf
+                                        item.name.endsWith(".png") || item.name.endsWith(".jpg") || item.name.endsWith(".jpeg") -> Icons.Default.Image
                                         else -> Icons.Default.Image
                                     },
-                                    contentDescription = attachmentName,
+                                    contentDescription = item.name,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (attachmentName.length > 30) "${attachmentName.take(27)}..." else attachmentName,
+                                text = if (item.name.length > 30) "${item.name.take(27)}..." else item.name,
                                 fontSize = 16.sp,
                                 modifier = Modifier.weight(1f),
-                                color = if (isUrl(attachmentName)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                color = if (item.url != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
                             IconButton(onClick = {
-                                currentList = currentList - (attachmentName to uri)
+                                currentList = currentList - item
                                 onUpdate(currentList)
                             }) {
                                 Icon(Icons.Default.Close, contentDescription = "Hapus")
